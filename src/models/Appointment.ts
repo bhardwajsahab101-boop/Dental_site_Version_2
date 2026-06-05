@@ -1,51 +1,42 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 
 export interface IAppointment extends Document {
-  fullName: string;
-  phone: string;
-  email: string;
+  patientId: mongoose.Types.ObjectId;
   service: string;
-  appointmentDate: string;
-  message?: string;
-  status: "pending" | "confirmed" | "completed" | "cancelled";
+  appointmentDate: Date;
+  appointmentTime: string;
   notes?: string;
+  status: "pending" | "confirmed" | "completed" | "cancelled";
   createdAt: Date;
   updatedAt: Date;
 }
 
+export type AppointmentStatus = IAppointment["status"];
+
+
 const appointmentSchema = new Schema<IAppointment>(
   {
-    fullName: {
-      type: String,
+    patientId: {
+      type: Schema.Types.ObjectId,
+      ref: "Patient",
       required: true,
-      trim: true,
-    },
-
-    phone: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    email: {
-      type: String,
-      required: true,
-      trim: true,
+      index: true,
     },
 
     service: {
       type: String,
       required: true,
+      trim: true,
     },
 
     appointmentDate: {
-      type: String,
+      type: Date,
       required: true,
     },
 
-    message: {
+    appointmentTime: {
       type: String,
-      default: "",
+      required: true,
     },
 
     status: {
@@ -57,6 +48,7 @@ const appointmentSchema = new Schema<IAppointment>(
     notes: {
       type: String,
       default: "",
+      trim: true,
     },
   },
   {

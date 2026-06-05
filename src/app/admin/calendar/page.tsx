@@ -20,6 +20,7 @@ interface Appointment {
   email: string;
   service: string;
   appointmentDate: string;
+  appointmentTime?: string;
   message?: string;
   status: "pending" | "confirmed" | "completed" | "cancelled";
   createdAt: string;
@@ -31,6 +32,23 @@ export default function AdminCalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  // Rescheduling states
+  const [isRescheduling, setIsRescheduling] = useState(false);
+  const [newDate, setNewDate] = useState("");
+  const [newTime, setNewTime] = useState("");
+  const [savingReschedule, setSavingReschedule] = useState(false);
+
+  useEffect(() => {
+    if (selectedAppointment) {
+      const dateStr = typeof selectedAppointment.appointmentDate === "string"
+        ? selectedAppointment.appointmentDate.split("T")[0]
+        : new Date(selectedAppointment.appointmentDate).toISOString().split("T")[0];
+      setNewDate(dateStr);
+      setNewTime(selectedAppointment.appointmentTime || "");
+      setIsRescheduling(false);
+    }
+  }, [selectedAppointment]);
 
   const fetchAppointments = async () => {
     setLoading(true);
@@ -94,6 +112,55 @@ export default function AdminCalendarPage() {
     }
   };
 
+  const handleSaveReschedule = async () => {
+    if (!selectedAppointment) return;
+    if (!newDate || !newTime) {
+      toast.error("Please specify both date and time");
+      return;
+    }
+
+    setSavingReschedule(true);
+    try {
+      const res = await fetch(`/api/appointments/${selectedAppointment._id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          appointmentDate: newDate,
+          appointmentTime: newTime,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Failed to reschedule appointment");
+      }
+
+      toast.success("Appointment rescheduled successfully!");
+      setIsRescheduling(false);
+
+      // Refresh appointments
+      await fetchAppointments();
+
+      // Update selectedAppointment instance in view
+      setSelectedAppointment((prev) =>
+        prev
+          ? {
+              ...prev,
+              appointmentDate: newDate,
+              appointmentTime: newTime,
+            }
+          : null
+      );
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Failed to reschedule");
+    } finally {
+      setSavingReschedule(false);
+    }
+  };
+
   // Get days in current month
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -136,11 +203,14 @@ export default function AdminCalendarPage() {
 
   // Match appointments to a specific calendar date (YYYY-MM-DD format comparison)
   const getAppointmentsForDate = (date: Date) => {
-    const localDateString = date.toISOString().split("T")[0]; // YYYY-MM-DD
+    const targetDateStr = date.toISOString().split("T")[0]; // YYYY-MM-DD
     
-    // In our DB appointmentDate is saved as a date input string: "YYYY-MM-DD"
     return appointments.filter((app) => {
-      return app.appointmentDate === localDateString;
+      if (!app.appointmentDate) return false;
+      const appDateStr = typeof app.appointmentDate === "string"
+        ? app.appointmentDate.split("T")[0]
+        : new Date(app.appointmentDate).toISOString().split("T")[0];
+      return appDateStr === targetDateStr;
     });
   };
 
@@ -381,6 +451,60 @@ export default function AdminCalendarPage() {
                   </div>
                 </div>
               )}
+
+              {/* Rescheduling Block */}
+              <div className="space-y-1.5 pt-1 border-t border-slate-100 mt-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-705 block">Reschedule Visit:</span>
+                  <button
+                    onClick={() => setIsRescheduling(!isRescheduling)}
+                    type="button"
+                    className="text-[10px] text-indigo-600 hover:text-indigo-850 font-bold cursor-pointer"
+                  >
+                    {isRescheduling ? "Cancel" : "Change Date/Time"}
+                  </button>
+                </div>
+
+                {isRescheduling ? (
+                  <div className="space-y-2 bg-slate-50 border border-slate-150 p-2.5 rounded-xl animate-in slide-in-from-top-1 duration-150 mt-1">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-0.5">
+                        <label className="text-[9px] uppercase font-bold text-slate-400">New Date</label>
+                        <input
+                          type="date"
+                          value={newDate}
+                          onChange={(e) => setNewDate(e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-855 focus:outline-none"
+                        />
+                      </div>
+                      <div className="space-y-0.5">
+                        <label className="text-[9px] uppercase font-bold text-slate-400">New Time</label>
+                        <input
+                          type="time"
+                          value={newTime}
+                          onChange={(e) => setNewTime(e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-xs text-slate-855 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleSaveReschedule}
+                      disabled={savingReschedule}
+                      type="button"
+                      className="w-full bg-slate-900 hover:bg-slate-850 disabled:opacity-75 disabled:cursor-not-allowed text-white text-[10px] font-bold py-1.5 px-2.5 rounded-lg transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                    >
+                      {savingReschedule ? (
+                        <>
+                          <Loader2 className="h-3 w-3 animate-spin text-white" />
+                          Saving...
+                        </>
+                      ) : (
+                        "Confirm Reschedule"
+                      )}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
 
               {/* Dropdown status update action */}
               <div className="space-y-1.5 pt-1">

@@ -27,31 +27,31 @@ export default function StatsCards({
       title: "Total",
       value: total,
       icon: ClipboardList,
-      color: "text-slate-600 bg-slate-50 border-slate-200/50",
+      color: "text-slate-650 bg-slate-50 border-slate-200/50",
     },
     {
       title: "Pending",
       value: pending,
       icon: Clock,
-      color: "text-amber-600 bg-amber-50/50 border-amber-100",
+      color: "text-amber-650 bg-amber-50/50 border-amber-100",
     },
     {
       title: "Confirmed",
       value: confirmed,
       icon: Calendar,
-      color: "text-sky-600 bg-sky-50/50 border-sky-100",
+      color: "text-sky-650 bg-sky-50/50 border-sky-100",
     },
     {
       title: "Completed",
       value: completed,
       icon: CheckCircle,
-      color: "text-emerald-600 bg-emerald-50/50 border-emerald-100",
+      color: "text-emerald-650 bg-emerald-50/50 border-emerald-100",
     },
     {
       title: "Cancelled",
       value: cancelled,
       icon: XCircle,
-      color: "text-rose-600 bg-rose-50/50 border-rose-100",
+      color: "text-rose-650 bg-rose-50/50 border-rose-100",
     },
   ];
 

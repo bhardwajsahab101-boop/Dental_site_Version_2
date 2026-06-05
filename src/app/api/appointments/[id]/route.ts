@@ -11,7 +11,6 @@ export async function PATCH(
   try {
     await connectDB();
 
-    // In Next.js 15+ and 16, params is a Promise and must be awaited
     const { id } = await context.params;
     if (!id) {
       return NextResponse.json(
@@ -24,25 +23,42 @@ export async function PATCH(
     }
 
     const body = await req.json();
-    const { status } = body;
+    const { status, appointmentDate, appointmentTime, notes, service } = body;
 
-    // Validate incoming status
-    if (!status || !VALID_STATUSES.includes(status)) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: `Invalid status. Status must be one of: ${VALID_STATUSES.join(", ")}`,
-        },
-        { status: 400 }
-      );
+    const updateFields: any = {};
+
+    // Validate incoming status if provided
+    if (status !== undefined) {
+      if (!VALID_STATUSES.includes(status)) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: `Invalid status. Status must be one of: ${VALID_STATUSES.join(", ")}`,
+          },
+          { status: 400 }
+        );
+      }
+      updateFields.status = status;
     }
 
-    // Update appointment status and return the new document
+    if (appointmentDate !== undefined) {
+      updateFields.appointmentDate = new Date(appointmentDate);
+    }
+    if (appointmentTime !== undefined) {
+      updateFields.appointmentTime = appointmentTime;
+    }
+    if (notes !== undefined) {
+      updateFields.notes = notes;
+    }
+    if (service !== undefined) {
+      updateFields.service = service;
+    }
+
     const updatedAppointment = await Appointment.findByIdAndUpdate(
       id,
-      { status },
+      updateFields,
       { new: true, runValidators: true }
-    );
+    ).populate("patientId");
 
     if (!updatedAppointment) {
       return NextResponse.json(
@@ -56,7 +72,7 @@ export async function PATCH(
 
     return NextResponse.json({
       success: true,
-      message: "Appointment status updated successfully",
+      message: "Appointment updated successfully",
       updatedAppointment,
     });
   } catch (error) {
@@ -65,9 +81,10 @@ export async function PATCH(
     return NextResponse.json(
       {
         success: false,
-        message: "Failed to update status",
+        message: "Failed to update appointment",
       },
       { status: 500 }
     );
   }
 }
+

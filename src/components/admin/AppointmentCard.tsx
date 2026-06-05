@@ -9,17 +9,23 @@ import {
   MessageSquare,
   ChevronDown,
   ChevronUp,
-  Loader2
+  Loader2,
+  Clock
 } from "lucide-react";
 
 interface Appointment {
   _id: string;
-  fullName: string;
-  phone: string;
-  email: string;
+  patientId?: {
+    _id: string;
+    fullName: string;
+    phone: string;
+    email?: string;
+    patientCode?: string;
+  };
   service: string;
   appointmentDate: string;
-  message?: string;
+  appointmentTime?: string;
+  notes?: string;
   status: "pending" | "confirmed" | "completed" | "cancelled";
   createdAt: string;
   updatedAt: string;
@@ -54,6 +60,12 @@ export default function AppointmentCard({
     }
   };
 
+  const patient = appointment.patientId;
+  const fullName = patient?.fullName || "Unknown Patient";
+  const phone = patient?.phone || "—";
+  const email = patient?.email || "—";
+  const note = appointment.notes || "";
+
   return (
     <div
       className={`bg-white border border-slate-100 hover:border-slate-200/80 rounded-xl transition-all duration-150 relative overflow-hidden ${
@@ -74,7 +86,7 @@ export default function AppointmentCard({
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-xs font-bold text-slate-850 truncate flex items-center space-x-1">
               <User className="h-3.5 w-3.5 text-slate-400" />
-              <span>{appointment.fullName}</span>
+              <span>{fullName}</span>
             </h3>
 
             {/* Service Type */}
@@ -92,7 +104,7 @@ export default function AppointmentCard({
             </span>
 
             {/* Note Badge Button */}
-            {appointment.message && (
+            {note && (
               <button
                 onClick={() => setShowNote(!showNote)}
                 className={`text-[9px] font-semibold flex items-center space-x-1 px-1.5 py-0.25 rounded border transition-colors ${
@@ -114,26 +126,41 @@ export default function AppointmentCard({
 
           {/* Contact Details & Appointment Date */}
           <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 mt-2 text-[11px] text-slate-500 font-medium">
-            <a
-              href={`tel:${appointment.phone}`}
-              className="inline-flex items-center space-x-1 hover:text-slate-950 transition-colors"
-            >
-              <Phone className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-              <span>{appointment.phone}</span>
-            </a>
+            {phone !== "—" && (
+              <a
+                href={`tel:${phone}`}
+                className="inline-flex items-center space-x-1 hover:text-slate-950 transition-colors"
+              >
+                <Phone className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                <span>{phone}</span>
+              </a>
+            )}
 
-            <a
-              href={`mailto:${appointment.email}`}
-              className="inline-flex items-center space-x-1 hover:text-slate-950 transition-colors"
-            >
-              <Mail className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-              <span className="truncate max-w-[150px] sm:max-w-none">{appointment.email}</span>
-            </a>
+            {email !== "—" && (
+              <a
+                href={`mailto:${email}`}
+                className="inline-flex items-center space-x-1 hover:text-slate-950 transition-colors"
+              >
+                <Mail className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                <span className="truncate max-w-[150px] sm:max-w-none">{email}</span>
+              </a>
+            )}
 
             <div className="inline-flex items-center space-x-1 text-slate-700">
               <Calendar className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-              <span className="font-semibold">{appointment.appointmentDate}</span>
+              <span className="font-semibold">
+                {typeof appointment.appointmentDate === "string" 
+                  ? new Date(appointment.appointmentDate).toLocaleDateString()
+                  : appointment.appointmentDate}
+              </span>
             </div>
+
+            {appointment.appointmentTime && (
+              <div className="inline-flex items-center space-x-1 text-slate-700">
+                <Clock className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                <span className="font-semibold">{appointment.appointmentTime}</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -159,10 +186,10 @@ export default function AppointmentCard({
       </div>
 
       {/* Expanded Note Area */}
-      {showNote && appointment.message && (
+      {showNote && note && (
         <div className="bg-slate-50/50 border-t border-slate-50 px-3.5 py-2.5 text-[11px] text-slate-600 flex items-start space-x-2">
           <MessageSquare className="h-3.5 w-3.5 text-slate-400 mt-0.5 shrink-0" />
-          <p className="italic leading-normal">"{appointment.message}"</p>
+          <p className="italic leading-normal">"{note}"</p>
         </div>
       )}
     </div>

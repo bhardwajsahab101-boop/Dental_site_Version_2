@@ -2,11 +2,16 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { verifyJWT } from "./lib/auth";
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   const isAdminRoute = pathname.startsWith("/admin");
-  const isLoginRoute = pathname === "/admin/login";
+  const isLoginRoute = pathname === "/admin/login" || pathname === "/admin/login/";
+
+  // Ensure the login page is never blocked by auth middleware
+  if (isLoginRoute) {
+    return NextResponse.next();
+  }
 
   // If this is an admin route, enforce auth check
   if (isAdminRoute) {

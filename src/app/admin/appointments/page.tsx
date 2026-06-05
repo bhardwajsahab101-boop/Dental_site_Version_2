@@ -3,10 +3,8 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import {
-  CalendarDays,
   Loader2,
   RefreshCw,
-  Search,
   FilterX
 } from "lucide-react";
 import StatsCards from "../../../components/admin/StatsCards";
@@ -19,12 +17,17 @@ import {
 
 interface Appointment {
   _id: string;
-  fullName: string;
-  phone: string;
-  email: string;
+  patientId?: {
+    _id: string;
+    fullName: string;
+    phone: string;
+    email?: string;
+    patientCode?: string;
+  };
   service: string;
   appointmentDate: string;
-  message?: string;
+  appointmentTime?: string;
+  notes?: string;
   status: "pending" | "confirmed" | "completed" | "cancelled";
   createdAt: string;
   updatedAt: string;
@@ -51,7 +54,7 @@ export default function AppointmentsPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/appointments");
+      const res = await fetch("/api/appointments", { cache: "no-store" });
       if (!res.ok) {
         throw new Error("Failed to fetch appointments");
       }
@@ -119,13 +122,18 @@ export default function AppointmentsPage() {
 
   // Perform client-side filter for fast receptionist workflow
   const filteredAppointments = appointments.filter((app) => {
+    const patient = app.patientId;
+    const fullName = patient?.fullName || "";
+    const phone = patient?.phone || "";
+    const email = patient?.email || "";
+
     // 1. Text search
     const query = searchQuery.toLowerCase().trim();
     const matchesSearch =
       !query ||
-      app.fullName.toLowerCase().includes(query) ||
-      app.phone.toLowerCase().includes(query) ||
-      app.email.toLowerCase().includes(query);
+      fullName.toLowerCase().includes(query) ||
+      phone.toLowerCase().includes(query) ||
+      email.toLowerCase().includes(query);
 
     // 2. Status Pill Tabs
     const matchesStatus =

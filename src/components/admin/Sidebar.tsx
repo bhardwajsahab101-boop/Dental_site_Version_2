@@ -10,7 +10,9 @@ import {
   Menu,
   X,
   Activity,
-  LogOut
+  LogOut,
+  TrendingUp,
+  Settings
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -21,7 +23,10 @@ export default function Sidebar() {
     { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
     { name: "Appointments", href: "/admin/appointments", icon: Calendar },
     { name: "Calendar", href: "/admin/calendar", icon: Calendar },
+    { name: "Analytics", href: "/admin/analytics", icon: TrendingUp },
     { name: "Messages", href: "/admin/messages", icon: Activity },
+    { name: "Patients", href: "/admin/patients", icon: LogOut },
+    { name: "Settings", href: "/admin/settings", icon: Settings }
   ];
 
   const isActive = (href: string) => {

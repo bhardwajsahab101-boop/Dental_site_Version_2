@@ -16,12 +16,19 @@ const inputStyles =
 
 export default function Booking() {
   const [formData, setFormData] = useState({
+    // Patient fields
     fullName: "",
     phone: "",
     email: "",
+    age: "",
+    gender: "",
+    address: "",
+    medicalNotes: "",
+
+    // Appointment fields
     service: "",
     appointmentDate: "",
-    message: "",
+    appointmentTime: "",
   });
 
   const router = useRouter();
@@ -82,9 +89,13 @@ export default function Booking() {
         fullName: "",
         phone: "",
         email: "",
+        age: "",
+        gender: "",
+        address: "",
+        medicalNotes: "",
         service: "",
         appointmentDate: "",
-        message: "",
+        appointmentTime: "",
       });
     } catch (error) {
       console.log(error);
@@ -215,12 +226,54 @@ export default function Booking() {
               className={inputStyles}
             />
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <input
+                type="number"
+                name="age"
+                placeholder="Age"
+                value={formData.age}
+                onChange={handleChange}
+                min={0}
+                className={inputStyles}
+              />
+
+              <select
+                name="gender"
+                value={formData.gender}
+                onChange={handleChange}
+                className={inputStyles}
+              >
+                <option value="">Select Gender</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            <input
+              type="text"
+              name="address"
+              placeholder="Address"
+              value={formData.address}
+              onChange={handleChange}
+              className={inputStyles}
+            />
+
             <textarea
-              name="message"
-              placeholder="Message"
-              value={formData.message}
+              name="medicalNotes"
+              placeholder="Medical Notes (conditions, meds, etc.)"
+              value={formData.medicalNotes}
               onChange={handleChange}
               rows={4}
+              className={inputStyles}
+            />
+
+            <input
+              type="time"
+              name="appointmentTime"
+              value={formData.appointmentTime}
+              onChange={handleChange}
+              required
               className={inputStyles}
             />
 
@@ -245,7 +298,7 @@ export default function Booking() {
               {loading
                 ? "Booking..."
                 : "Book Appointment"}
-            
+
             </button>
           </form>
         </div>

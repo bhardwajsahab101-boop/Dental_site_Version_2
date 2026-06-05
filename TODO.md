@@ -1,7 +1,9 @@
 # TODO
 
-- [ ] STEP 1: Confirm Appointment model has `status` enum+default (src/models/Appointment.ts). If missing, add.
-- [ ] STEP 2: Ensure admin page shows status badge under `{appointment.service}` (src/app/admin/appointments/page.tsx). If missing, add.
-- [ ] STEP 3: Create PATCH endpoint at `src/app/api/appointments/[id]/route.ts` to update appointment status.
-- [ ] [optional] STEP 4: Add status dropdown UI in admin appointment card (render only, no wiring yet).
+## Patient profile: Add Treatment
+- [ ] Add “+ Add Treatment” button on `src/app/admin/patients/[id]/page.tsx`
+- [ ] Add treatment modal form with fields: Treatment Name, Diagnosis, Tooth Number, Cost, Notes, Status
+- [ ] Implement submit handler calling `POST /api/treatments`
+- [ ] Attach `appointmentId` using the most recent appointment (appointments[0]) and show toast if none exist
+- [ ] On success: toast + close modal + reset form + reload patient profile
 
