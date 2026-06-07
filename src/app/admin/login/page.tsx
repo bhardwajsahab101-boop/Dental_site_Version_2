@@ -106,8 +106,9 @@ export default function LoginPage() {
           }
         }
         
-        // If we logged in to a subdomain that is different from our clinic slug
-        if (user.clinicSlug !== currentSlug) {
+        const isVercel = currentHost.split(":")[0].toLowerCase().endsWith(".vercel.app") || currentHost.split(":")[0].toLowerCase() === "vercel.app";
+        // If we logged in to a subdomain that is different from our clinic slug (and not on Vercel deployment)
+        if (!isVercel && user.clinicSlug !== currentSlug) {
           // For local development on localhost, 127.0.0.1, or lvh.me, redirect to the wildcard lvh.me loopback domain so subdomains work out of the box
           if (
             currentHost.startsWith("localhost") ||

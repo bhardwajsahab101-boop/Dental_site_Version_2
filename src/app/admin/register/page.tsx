@@ -93,14 +93,21 @@ export default function RegisterPage() {
 
   if (registeredSlug) {
     const localUrl = `${window.location.protocol}//${registeredSlug}.lvh.me:${window.location.port || "3000"}/admin/login`;
-    const hostParts = window.location.host.split(".");
+    const currentHost = window.location.host;
+    const isVercel = currentHost.split(":")[0].toLowerCase().endsWith(".vercel.app") || currentHost.split(":")[0].toLowerCase() === "vercel.app";
+    
+    const hostParts = currentHost.split(".");
     let prodDomain = "launchstack.in";
     if (hostParts.length > 2 && hostParts[0] !== "www") {
       prodDomain = hostParts.slice(1).join(".");
     } else {
-      prodDomain = window.location.host;
+      prodDomain = currentHost;
     }
-    const prodUrl = `${window.location.protocol}//${registeredSlug}.${prodDomain}/admin/login`;
+    
+    let prodUrl = `${window.location.protocol}//${registeredSlug}.${prodDomain}/admin/login`;
+    if (isVercel) {
+      prodUrl = `${window.location.protocol}//${currentHost}/admin/login`;
+    }
 
     return (
       <div className="flex items-center justify-center py-6">

@@ -80,7 +80,9 @@ export async function middleware(request: NextRequest) {
       const userSlug = verified.clinicSlug || "default";
       
       // Strict matching: clinic user must be on their specific subdomain
-      if (currentSlug === "default" || currentSlug !== userSlug) {
+      // Disable tenant redirect logic if running on a Vercel deployment URL
+      const isVercel = host.split(":")[0].toLowerCase().endsWith(".vercel.app") || host.split(":")[0].toLowerCase() === "vercel.app";
+      if (!isVercel && (currentSlug === "default" || currentSlug !== userSlug)) {
         console.warn(`Blocked cross-tenant access to page: user clinic '${userSlug}' tried to access subdomain '${currentSlug}'`);
         // Redirect them to their own correct subdomain admin page
         const protocol = request.nextUrl.protocol;
