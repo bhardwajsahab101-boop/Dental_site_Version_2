@@ -616,7 +616,7 @@ export default function PatientProfilePage({ params }: Props) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Quick Call Action */}
+          
           <a
             href={`tel:${patient.phone}`}
             title="Call Patient"
