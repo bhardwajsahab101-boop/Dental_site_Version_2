@@ -1,7 +1,7 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 
 export interface IAuditLog extends Document {
-  clinicId?: mongoose.Types.ObjectId;
+  clinicId: mongoose.Types.ObjectId;
   userId: mongoose.Types.ObjectId;
   userName: string;
   userRole: string;
@@ -17,7 +17,7 @@ const auditLogSchema = new Schema<IAuditLog>(
     clinicId: {
       type: Schema.Types.ObjectId,
       ref: "Clinic",
-      required: false,
+      required: true,
       index: true,
     },
     userId: {
@@ -61,6 +61,13 @@ const auditLogSchema = new Schema<IAuditLog>(
     timestamps: { createdAt: true, updatedAt: false },
   }
 );
+
+// Pre-save hook to prevent orphaned documents and cross-tenant access leaks
+auditLogSchema.pre("save", function () {
+  if (!this.clinicId) {
+    throw new Error("clinicId is required for AuditLog");
+  }
+});
 
 export const AuditLog =
   (mongoose.models.AuditLog as Model<IAuditLog>) ||

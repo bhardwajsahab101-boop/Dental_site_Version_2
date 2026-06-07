@@ -7,6 +7,8 @@ export interface IUser extends Document {
   password: string;
   role: "admin" | "owner" | "doctor" | "receptionist";
   isActive: boolean;
+  createdBy?: mongoose.Types.ObjectId | null;
+  updatedBy?: mongoose.Types.ObjectId | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,6 +48,16 @@ const userSchema = new Schema<IUser>(
       type: Boolean,
       default: true,
       required: true,
+    },
+    createdBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    updatedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
     },
   },
   {

@@ -2,6 +2,7 @@
 
 import React, { use, useEffect, useState, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import {
   ArrowLeft,
@@ -97,7 +98,20 @@ type Props = {
 };
 
 export default function PatientProfilePage({ params }: Props) {
+  const router = useRouter();
   const [id, setId] = useState<string | null>(null);
+
+  // Edit Patient Details States
+  const [showEditPatientModal, setShowEditPatientModal] = useState(false);
+  const [editFullName, setEditFullName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editAge, setEditAge] = useState("");
+  const [editGender, setEditGender] = useState("");
+  const [editAddress, setEditAddress] = useState("");
+  const [editMedicalNotes, setEditMedicalNotes] = useState("");
+  const [editAllergies, setEditAllergies] = useState("");
+  const [updatingPatient, setUpdatingPatient] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -394,6 +408,80 @@ export default function PatientProfilePage({ params }: Props) {
       toast.error(err.message || "Failed to submit treatment");
     } finally {
       setAddingTreatment(false);
+    }
+  };
+
+  const handleDeletePatient = async () => {
+    if (!patient) return;
+    if (
+      !window.confirm(
+        `Are you sure you want to delete patient "${patient.fullName}"? This action cannot be undone.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/patients/${patient._id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Failed to delete patient");
+      }
+      toast.success("Patient deleted successfully!");
+      router.push("/admin/patients");
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Failed to delete patient");
+    }
+  };
+
+  const handleUpdatePatient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!patient) return;
+
+    const fullName = editFullName.trim();
+    if (fullName.length < 3) {
+      toast.error("Full Name must be at least 3 characters.");
+      return;
+    }
+
+    const digitsOnly = editPhone.trim().replace(/\D/g, "");
+
+
+    setUpdatingPatient(true);
+    try {
+      const res = await fetch(`/api/patients/${patient._id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          fullName,
+          phone: digitsOnly,
+          email: editEmail.trim() || undefined,
+          age: editAge ? Number(editAge) : undefined,
+          gender: editGender || undefined,
+          address: editAddress.trim() || undefined,
+          medicalNotes: editMedicalNotes.trim() || undefined,
+          allergies: editAllergies.trim() || undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Failed to update patient");
+      }
+
+      toast.success("Patient details updated successfully!");
+      setShowEditPatientModal(false);
+      await load();
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Failed to update patient");
+    } finally {
+      setUpdatingPatient(false);
     }
   };
 
@@ -1258,6 +1346,36 @@ export default function PatientProfilePage({ params }: Props) {
                   {patient.age ? `${patient.age} years old` : "—"}
                 </span>
               </div>
+
+              {/* Action Buttons: Edit and Delete */}
+              <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 mt-4">
+                <button
+                  onClick={() => {
+                    setEditFullName(patient.fullName || "");
+                    setEditPhone(patient.phone || "");
+                    setEditEmail(patient.email || "");
+                    setEditAge(patient.age ? String(patient.age) : "");
+                    setEditGender(patient.gender || "");
+                    setEditAddress(patient.address || "");
+                    setEditMedicalNotes(patient.medicalNotes || "");
+                    setEditAllergies(patient.allergies || "");
+                    setShowEditPatientModal(true);
+                  }}
+                  type="button"
+                  className="w-full sm:flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  Edit Details
+                </button>
+                <button
+                  onClick={handleDeletePatient}
+                  type="button"
+                  className="w-full sm:flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 border border-rose-205 text-rose-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete Patient
+                </button>
+              </div>
             </div>
           </section>
         </div>
@@ -1802,6 +1920,169 @@ export default function PatientProfilePage({ params }: Props) {
                     <>
                       <Check className="w-3.5 h-3.5" />
                       Upload File
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Patient Details Modal Overlay */}
+      {showEditPatientModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-100 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200 overflow-y-auto max-h-[90vh]">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-800">Edit Patient Details</h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">Update records for {patient.fullName}</p>
+              </div>
+              <button
+                onClick={() => setShowEditPatientModal(false)}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+                type="button"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdatePatient} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Full Name <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    value={editFullName}
+                    onChange={(e) => setEditFullName(e.target.value)}
+                    required
+                    placeholder="Full Name"
+                    className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Phone Number <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(e.target.value)}
+                    required
+                    placeholder="10-digit mobile"
+                    className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-1 sm:col-span-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Gender
+                  </label>
+                  <select
+                    value={editGender}
+                    onChange={(e) => setEditGender(e.target.value)}
+                    className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700"
+                  >
+                    <option value="">Select Gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1 sm:col-span-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Age
+                  </label>
+                  <input
+                    type="number"
+                    value={editAge}
+                    onChange={(e) => setEditAge(e.target.value)}
+                    placeholder="Age"
+                    className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700"
+                  />
+                </div>
+
+                <div className="space-y-1 sm:col-span-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    placeholder="email@example.com"
+                    className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Residential Address
+                </label>
+                <textarea
+                  placeholder="Address..."
+                  value={editAddress}
+                  onChange={(e) => setEditAddress(e.target.value)}
+                  className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-805 resize-none"
+                  rows={2}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Medical Notes
+                  </label>
+                  <textarea
+                    placeholder="Conditions, medicines, etc..."
+                    value={editMedicalNotes}
+                    onChange={(e) => setEditMedicalNotes(e.target.value)}
+                    className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-800 resize-none"
+                    rows={2}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Allergies
+                  </label>
+                  <textarea
+                    placeholder="Known allergies..."
+                    value={editAllergies}
+                    onChange={(e) => setEditAllergies(e.target.value)}
+                    className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-800 resize-none"
+                    rows={2}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowEditPatientModal(false)}
+                  className="px-4 py-2 bg-slate-150 hover:bg-slate-200/80 text-slate-700 rounded-xl text-xs font-semibold transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={updatingPatient}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-75 disabled:cursor-not-allowed text-white rounded-xl text-xs font-semibold shadow-sm hover:shadow transition-all flex items-center gap-1.5"
+                >
+                  {updatingPatient ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      Save Changes
                     </>
                   )}
                 </button>

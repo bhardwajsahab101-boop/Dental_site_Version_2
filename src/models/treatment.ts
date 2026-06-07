@@ -1,7 +1,7 @@
 import mongoose, { Document, Schema, Model } from "mongoose";
 
 export interface ITreatment extends Document {
-  clinicId?: mongoose.Types.ObjectId;
+  clinicId: mongoose.Types.ObjectId;
   patientId: Schema.Types.ObjectId;
   appointmentId?: Schema.Types.ObjectId | null;
 
@@ -18,6 +18,8 @@ export interface ITreatment extends Document {
   status: "planned" | "in_progress" | "completed" | "cancelled";
   deletedAt?: Date | null;
   deletedBy?: mongoose.Types.ObjectId | null;
+  createdBy?: mongoose.Types.ObjectId | null;
+  updatedBy?: mongoose.Types.ObjectId | null;
 
   createdAt: Date;
   updatedAt: Date;
@@ -56,7 +58,7 @@ const treatmentSchema = new Schema<ITreatment>(
     clinicId: {
       type: Schema.Types.ObjectId,
       ref: "Clinic",
-      required: false,
+      required: true,
       index: true,
     },
     patientId: {
@@ -131,11 +133,28 @@ const treatmentSchema = new Schema<ITreatment>(
       ref: "User",
       default: null,
     },
+    createdBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+    updatedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
   },
   {
     timestamps: true,
   }
 );
+
+// Pre-save hook to prevent orphaned documents and cross-tenant access leaks
+treatmentSchema.pre("save", function () {
+  if (!this.clinicId) {
+    throw new Error("clinicId is required for Treatment");
+  }
+});
 
 export const Treatment =
   (mongoose.models.Treatment as Model<ITreatment>) ||

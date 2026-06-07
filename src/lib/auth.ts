@@ -157,42 +157,18 @@ export async function getCurrentUser(): Promise<UserSession | null> {
       console.log("getCurrentUser: JWT verification failed or missing userId.");
       return null;
     }
-
-    // Resolve host slug/subdomain
-    const headersList = await headers();
-    const host = headersList.get("host") || "";
-    let hostSlug = "default";
-    const parts = host.split(".");
-    if (parts.length > 2 || (host.includes("localhost") && parts.length > 1)) {
-      if (parts[0] !== "www") {
-        hostSlug = parts[0].split(":")[0].toLowerCase();
-      }
+ 
+    const { getCurrentClinicId, getCurrentClinicSlug } = await import("./clinic");
+    const activeClinicId = await getCurrentClinicId();
+    const activeClinicSlug = await getCurrentClinicSlug();
+ 
+    if (!activeClinicId) {
+      console.log("getCurrentUser: No active clinic resolved.");
+      return null;
     }
-
-    console.log(`getCurrentUser: Verifying user ${verified.email} (Role: ${verified.role}) on hostSlug: '${hostSlug}'`);
-
-    const { connectDB } = await import("./mongodb");
-    const { Clinic } = await import("../models/Clinic");
-    const { User } = await import("../models/User");
-    await connectDB();
-
-    let activeClinicId = "";
-    if (hostSlug === "default" && verified.clinicId) {
-      activeClinicId = String(verified.clinicId);
-      console.log(`getCurrentUser: Fallback active clinic to user clinicId: '${activeClinicId}'`);
-    } else {
-      let activeClinic = await Clinic.findOne({ slug: hostSlug });
-      if (!activeClinic) {
-        activeClinic = await Clinic.findOne();
-      }
-      if (!activeClinic) {
-        console.log("getCurrentUser: No active clinic found in DB.");
-        return null;
-      }
-      activeClinicId = String(activeClinic._id);
-      console.log(`getCurrentUser: Resolved active clinic: '${activeClinic.name}' (ID: ${activeClinicId}, Slug: ${activeClinic.slug})`);
-    }
-
+ 
+    console.log(`getCurrentUser: Verifying user ${verified.email} (Role: ${verified.role}) on clinic slug: '${activeClinicSlug}'`);
+ 
     if (verified.role !== "admin") {
       const tokenClinicId = verified.clinicId ? String(verified.clinicId) : "";
       console.log(`getCurrentUser: Comparing token clinicId '${tokenClinicId}' with active clinicId '${activeClinicId}'`);
@@ -201,10 +177,14 @@ export async function getCurrentUser(): Promise<UserSession | null> {
         return null;
       }
     }
-
+ 
+    const { connectDB } = await import("./mongodb");
+    const { User } = await import("../models/User");
+    await connectDB();
+ 
     const dbUser = await User.findById(verified.userId).select("name").lean();
     const name = dbUser ? dbUser.name : "Clinic Staff";
-
+ 
     console.log("getCurrentUser: Session successfully validated.");
     return {
       userId: verified.userId as string,
@@ -218,70 +198,11 @@ export async function getCurrentUser(): Promise<UserSession | null> {
     return null;
   }
 }
-
+ 
 export async function getCurrentClinic(): Promise<string | null> {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get("admin_token")?.value;
-    if (!token) {
-      console.log("getCurrentClinic: No admin_token cookie found.");
-      return null;
-    }
-    const secret = process.env.JWT_SECRET || "default_secret";
-    const verified = await verifyJWT(token, secret);
-    if (!verified) {
-      console.log("getCurrentClinic: JWT verification failed.");
-      return null;
-    }
-    
-    // Resolve host slug/subdomain
-    const headersList = await headers();
-    const host = headersList.get("host") || "";
-    let hostSlug = "default";
-    const parts = host.split(".");
-    if (parts.length > 2 || (host.includes("localhost") && parts.length > 1)) {
-      if (parts[0] !== "www") {
-        hostSlug = parts[0].split(":")[0].toLowerCase();
-      }
-    }
-
-    console.log(`getCurrentClinic: Verifying on hostSlug: '${hostSlug}'`);
-
-    const { connectDB } = await import("./mongodb");
-    const { Clinic } = await import("../models/Clinic");
-    await connectDB();
-
-    let activeClinicId = "";
-    if (hostSlug === "default" && verified.clinicId) {
-      activeClinicId = String(verified.clinicId);
-      console.log(`getCurrentClinic: Fallback active clinic to user clinicId: '${activeClinicId}'`);
-    } else {
-      let activeClinic = await Clinic.findOne({ slug: hostSlug });
-      if (!activeClinic) {
-        activeClinic = await Clinic.findOne();
-      }
-      if (!activeClinic) {
-        console.log("getCurrentClinic: No active clinic found in DB.");
-        return null;
-      }
-      activeClinicId = String(activeClinic._id);
-      console.log(`getCurrentClinic: Resolved active clinic: '${activeClinic.name}' (ID: ${activeClinicId}, Slug: ${activeClinic.slug})`);
-    }
-
-    // Tenant isolation check: For non-admin roles, their token's clinicId must match the active clinic's ID
-    if (verified.role !== "admin") {
-      const tokenClinicId = verified.clinicId ? String(verified.clinicId) : "";
-      console.log(`getCurrentClinic: Comparing token clinicId '${tokenClinicId}' with active clinicId '${activeClinicId}'`);
-      if (tokenClinicId !== activeClinicId) {
-        console.warn(`getCurrentClinic: Blocked cross-tenant access. Token clinicId '${tokenClinicId}' does not match active clinicId '${activeClinicId}'`);
-        return null;
-      }
-      return tokenClinicId;
-    }
-    
-    // For Super Admin (role === "admin"), return the active clinic ID
-    console.log("getCurrentClinic: Super Admin session. Returning active clinic ID.");
-    return activeClinicId;
+    const { getCurrentClinicId } = await import("./clinic");
+    return getCurrentClinicId();
   } catch (error) {
     console.error("getCurrentClinic error:", error);
     return null;

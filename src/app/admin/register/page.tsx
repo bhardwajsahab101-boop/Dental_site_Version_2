@@ -22,6 +22,7 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [loadingUser, setLoadingUser] = useState(true);
+  const [registeredSlug, setRegisteredSlug] = useState<string | null>(null);
  
   useEffect(() => {
     setMounted(true);
@@ -70,12 +71,9 @@ export default function RegisterPage() {
         throw new Error(data.message || "Registration failed");
       }
  
-      toast.success("Registration successful! Redirecting to login...");
-      
-      // Redirect to login page
-      setTimeout(() => {
-        window.location.href = "/admin/login";
-      }, 1500);
+      toast.success("Registration successful!");
+      setRegisteredSlug(data.slug);
+      setLoading(false);
     } catch (err: unknown) {
       console.error(err);
       const errMsg = err instanceof Error ? err.message : "Failed to register";
@@ -89,6 +87,100 @@ export default function RegisterPage() {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
         <Loader2 className="h-8 w-8 animate-spin text-slate-800" />
+      </div>
+    );
+  }
+
+  if (registeredSlug) {
+    const localUrl = `${window.location.protocol}//${registeredSlug}.lvh.me:${window.location.port || "3000"}/admin/login`;
+    const hostParts = window.location.host.split(".");
+    let prodDomain = "launchstack.in";
+    if (hostParts.length > 2 && hostParts[0] !== "www") {
+      prodDomain = hostParts.slice(1).join(".");
+    } else {
+      prodDomain = window.location.host;
+    }
+    const prodUrl = `${window.location.protocol}//${registeredSlug}.${prodDomain}/admin/login`;
+
+    return (
+      <div className="flex items-center justify-center py-6">
+        <div className="w-full bg-white border border-slate-100 rounded-2xl shadow-xl p-6 sm:p-8 space-y-6" style={{ maxWidth: "600px" }}>
+          <div className="text-center space-y-3">
+            <div className="inline-flex items-center justify-center h-12 w-12 bg-emerald-50 text-emerald-600 rounded-full text-xl font-bold border border-emerald-100">
+              ✓
+            </div>
+            <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Clinic Registered!</h1>
+            <p className="text-slate-500 text-xs font-semibold">
+              Clinic "{clinicName}" was successfully set up with slug <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-indigo-650 font-bold">{registeredSlug}</code>
+            </p>
+          </div>
+
+          <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 space-y-4">
+            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
+              🔗 Access URLs
+            </h3>
+
+            <div className="space-y-3">
+              {/* Local Dev URL */}
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Local Development URL</span>
+                <div className="flex items-center justify-between gap-2 bg-white border border-slate-200 rounded-lg p-2 text-xs font-semibold">
+                  <span className="font-mono text-slate-600 truncate">{localUrl}</span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(localUrl);
+                      toast.success("Local URL copied!");
+                    }}
+                    className="text-[10px] bg-slate-900 hover:bg-slate-800 text-white font-bold px-2 py-1 rounded transition-colors shrink-0 cursor-pointer"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+
+              {/* Prod URL */}
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Production URL</span>
+                <div className="flex items-center justify-between gap-2 bg-white border border-slate-200 rounded-lg p-2 text-xs font-semibold">
+                  <span className="font-mono text-slate-600 truncate">{prodUrl}</span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(prodUrl);
+                      toast.success("Production URL copied!");
+                    }}
+                    className="text-[10px] bg-slate-900 hover:bg-slate-800 text-white font-bold px-2 py-1 rounded transition-colors shrink-0 cursor-pointer"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            <a
+              href={localUrl}
+              className="flex-1 inline-flex items-center justify-center bg-indigo-650 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm text-center cursor-pointer"
+            >
+              Open Login (Local Dev)
+            </a>
+            <button
+              onClick={() => {
+                setRegisteredSlug(null);
+                setClinicName("");
+                setClinicPhone("");
+                setClinicEmail("");
+                setClinicAddress("");
+                setOwnerName("");
+                setOwnerEmail("");
+                setOwnerPassword("");
+              }}
+              className="flex-1 inline-flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-xl text-xs font-bold transition-all text-center border border-slate-200 cursor-pointer"
+            >
+              Register Another Clinic
+            </button>
+          </div>
+        </div>
       </div>
     );
   }

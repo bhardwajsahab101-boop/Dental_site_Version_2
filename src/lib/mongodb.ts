@@ -24,8 +24,13 @@ async function seedDefaultClinicAndUser() {
     const { Clinic } = await import("../models/Clinic");
     const { User } = await import("../models/User");
     const { ClinicSettings } = await import("../models/ClinicSettings");
+    const { SaaSSettings, getSaaSSettings } = await import("../models/SaaSSettings");
     const { hashPassword } = await import("./auth");
  
+    // Seed SaaS Settings
+    await getSaaSSettings();
+    console.log("SaaS Settings initialized/verified.");
+
     let clinic = await Clinic.findOne();
     if (!clinic) {
       console.log("No clinics found. Checking legacy settings for seeding...");
@@ -39,12 +44,24 @@ async function seedDefaultClinicAndUser() {
         address: legacySettings?.address || "Clinic Address",
         logo: legacySettings?.logo || "",
         gstNumber: legacySettings?.gstNumber || "27AAAAA1111A1Z1",
+        status: "active",
+        trialEndsAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // long trial for seeded clinic
       });
       console.log("Seeded default clinic:", clinic.name, clinic._id);
-    } else if (clinic && !clinic.slug) {
-      clinic.slug = "default";
-      await clinic.save();
-      console.log("Self-healed clinic with default slug 'default'");
+    } else {
+      let needsSave = false;
+      if (!clinic.slug) {
+        clinic.slug = "default";
+        needsSave = true;
+      }
+      if (!clinic.status) {
+        clinic.status = "active";
+        needsSave = true;
+      }
+      if (needsSave) {
+        await clinic.save();
+        console.log("Self-healed clinic with status 'active' and slug 'default'");
+      }
     }
  
     const userCount = await User.countDocuments();
@@ -63,7 +80,7 @@ async function seedDefaultClinicAndUser() {
       });
       console.log("Seeded default owner user:", user.email, user._id);
     }
-
+ 
     const superAdmin = await User.findOne({ role: "admin" });
     if (!superAdmin) {
       console.log("No SaaS Super Admin found. Seeding default super admin...");

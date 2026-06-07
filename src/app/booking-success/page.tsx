@@ -6,6 +6,20 @@ export const dynamic = "force-dynamic";
 export default async function BookingSuccessPage() {
   const clinic = await getClinic();
 
+  if (!clinic) {
+    return (
+      <section className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center px-6">
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-2xl p-10 text-center border border-gray-100">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Clinic Not Found</h1>
+          <p className="text-gray-600 text-sm mb-6">The clinic you are trying to view does not exist.</p>
+          <Link href="/" className="inline-block bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 transition">
+            Back To Home
+          </Link>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center px-6">
 

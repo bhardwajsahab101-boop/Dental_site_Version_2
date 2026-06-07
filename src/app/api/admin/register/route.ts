@@ -100,7 +100,15 @@ export async function POST(req: Request) {
       uniqueSlug = `${slug}-${slugCount}`;
     }
  
-    // 1. Create Clinic
+    // Resolve creator ID
+    const session = await getCurrentUser();
+    const creatorId = session ? session.userId : null;
+
+    // 1. Create Clinic with status and trial period
+    const { getSaaSSettings } = await import("../../../../models/SaaSSettings");
+    const saasSettings = await getSaaSSettings();
+    const trialDays = saasSettings?.defaultTrialDays || 14;
+
     const clinic = await Clinic.create({
       slug: uniqueSlug,
       name: clinicName.trim(),
@@ -109,6 +117,8 @@ export async function POST(req: Request) {
       address: clinicAddress.trim(),
       logo: "",
       gstNumber: "",
+      status: "trial",
+      trialEndsAt: new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000),
     });
  
     // 2. Hash Password and Create Owner User
@@ -119,14 +129,17 @@ export async function POST(req: Request) {
       email: ownerEmail.trim().toLowerCase(),
       password: hashedPassword,
       role: "owner",
+      createdBy: creatorId,
+      updatedBy: creatorId,
     });
  
     return NextResponse.json(
       {
         success: true,
-        message: "Clinic and Owner registered successfully! You can now log in.",
+        message: "Clinic and Owner registered successfully!",
         clinicId: clinic._id,
         userId: user._id,
+        slug: clinic.slug,
       },
       { status: 201 }
     );
