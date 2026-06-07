@@ -2,40 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { verifyJWT } from "./lib/auth";
 import { hasPageAccess, hasApiAccess } from "./lib/permissions";
- 
-// Parser helper for subdomain / clinic slug
-function getSubdomainSlug(host: string): string {
-  const hostname = host.split(":")[0].toLowerCase();
-  
-  if (hostname === "localhost" || hostname === "lvh.me" || hostname === "127.0.0.1") {
-    return "default";
-  }
- 
-  // Handle local wildcard subdomains like aksharma.lvh.me
-  if (hostname.endsWith(".lvh.me")) {
-    const parts = hostname.split(".");
-    if (parts.length > 2 && parts[0] !== "www") {
-      return parts[0];
-    }
-  }
- 
-  // Handle production wildcard subdomains (assuming root domain launchstack.in)
-  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "launchstack.in";
-  if (hostname.endsWith("." + rootDomain)) {
-    const sub = hostname.replace("." + rootDomain, "");
-    if (sub !== "www") {
-      return sub;
-    }
-  }
- 
-  // Fallback: if hostname has 3 parts and doesn't match above rules
-  const parts = hostname.split(".");
-  if (parts.length > 2 && parts[0] !== "www") {
-    return parts[0];
-  }
- 
-  return "default";
-}
+import { getSubdomainSlug, isRootHost } from "./lib/subdomain";
  
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -89,7 +56,7 @@ export async function middleware(request: NextRequest) {
  
       if (hostname.endsWith(".lvh.me")) {
         cookieDomain = ".lvh.me";
-      } else if (hostname !== "localhost" && hostname !== "127.0.0.1") {
+      } else if (!isRootHost(hostname)) {
         const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "launchstack.in";
         if (hostname.endsWith("." + rootDomain)) {
           cookieDomain = `.${rootDomain}`;

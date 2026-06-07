@@ -3,6 +3,7 @@ import { connectDB } from "../../../lib/mongodb";
 import { ContactMessage } from "../../../models/ContactMessage";
 import { Clinic } from "../../../models/Clinic";
 import { notifyContactFormSubmitted } from "../../../lib/notifications";
+import { getSubdomainSlug, isRootHost } from "../../../lib/subdomain";
  
 // Simple HTML escaping to sanitize string inputs
 function sanitizeString(str: string): string {
@@ -25,18 +26,23 @@ export async function POST(req: Request) {
  
     // Resolve clinicId from host header
     const host = req.headers.get("host") || "";
-    let slug = "default";
-    const parts = host.split(".");
-    if (parts.length > 2 || (host.includes("localhost") && parts.length > 1)) {
-      if (parts[0] !== "www") {
-        slug = parts[0].split(":")[0];
-      }
-    }
+    const isRoot = isRootHost(host);
+    const slug = isRoot ? "default" : getSubdomainSlug(host);
     
-    let clinic = await Clinic.findOne({ slug: slug.toLowerCase() });
+    let clinic = null;
+    if (!isRoot) {
+      clinic = await Clinic.findOne({ slug: slug.toLowerCase() });
+    }
     if (!clinic) {
       clinic = await Clinic.findOne();
     }
+ 
+    const clinicMatch = clinic ? `${clinic.name} (${clinic._id})` : "None";
+    console.log(`Host: ${host}`);
+    console.log(`Detected Slug: ${slug}`);
+    console.log(`Is Root Domain: ${isRoot}`);
+    console.log(`Clinic Match: ${clinicMatch}`);
+ 
     const clinicId = clinic?._id || undefined;
  
     const body = await req.json();

@@ -3,6 +3,7 @@ import { signJWT, hashPassword } from "../../../../lib/auth";
 import { connectDB } from "../../../../lib/mongodb";
 import { User } from "../../../../models/User";
 import { Clinic } from "../../../../models/Clinic";
+import { isRootHost } from "../../../../lib/subdomain";
  
 export async function POST(req: Request) {
   try {
@@ -136,7 +137,7 @@ export async function POST(req: Request) {
 
     if (hostname.endsWith(".lvh.me")) {
       cookieDomain = ".lvh.me";
-    } else if (hostname !== "localhost" && hostname !== "127.0.0.1") {
+    } else if (!isRootHost(hostname)) {
       const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "launchstack.in";
       if (hostname.endsWith("." + rootDomain)) {
         cookieDomain = `.${rootDomain}`;
