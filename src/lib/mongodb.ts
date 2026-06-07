@@ -6,6 +6,19 @@ if (!MONGODB_URI) {
   throw new Error("Please define MONGODB_URI");
 }
 
+// Global caching structure for Mongoose
+interface MongooseCache {
+  conn: typeof mongoose | null;
+  promise: Promise<typeof mongoose> | null;
+  seeded: boolean;
+}
+
+let cached: MongooseCache = (global as any).mongoose;
+
+if (!cached) {
+  cached = (global as any).mongoose = { conn: null, promise: null, seeded: false };
+}
+
 async function seedDefaultClinicAndUser() {
   try {
     const { Clinic } = await import("../models/Clinic");
@@ -19,19 +32,19 @@ async function seedDefaultClinicAndUser() {
       const legacySettings = await ClinicSettings.findOne();
       
       clinic = await Clinic.create({
-        slug: "bright-smile",
-        name: legacySettings?.name || "Bright Smile Clinic",
-        email: legacySettings?.email || "support@brightsmile.com",
+        slug: "default",
+        name: legacySettings?.name || "Dental Clinic",
+        email: legacySettings?.email || "support@clinic.com",
         phone: legacySettings?.phone || "+91 99999 99999",
-        address: legacySettings?.address || "123 Health Ave, Medical District",
+        address: legacySettings?.address || "Clinic Address",
         logo: legacySettings?.logo || "",
         gstNumber: legacySettings?.gstNumber || "27AAAAA1111A1Z1",
       });
       console.log("Seeded default clinic:", clinic.name, clinic._id);
     } else if (clinic && !clinic.slug) {
-      clinic.slug = "bright-smile";
+      clinic.slug = "default";
       await clinic.save();
-      console.log("Self-healed clinic with default slug 'bright-smile'");
+      console.log("Self-healed clinic with default slug 'default'");
     }
  
     const userCount = await User.countDocuments();
@@ -101,16 +114,45 @@ async function seedDefaultClinicAndUser() {
 }
 
 export async function connectDB() {
-  try {
-    await mongoose.connect(MONGODB_URI);
-
-    console.log("MongoDB Connected");
-
-    // Seed default clinic & user if database is empty
-    await seedDefaultClinicAndUser();
-  } catch (error) {
-    console.log(error);
-
-    throw new Error("Database connection failed");
+  if (cached.conn) {
+    if (cached.seeded) {
+      return cached.conn;
+    }
+    try {
+      cached.seeded = true;
+      await seedDefaultClinicAndUser();
+      return cached.conn;
+    } catch (err) {
+      cached.seeded = false;
+      console.error("Seeding on cached connection failed:", err);
+      return cached.conn;
+    }
   }
+
+  if (!cached.promise) {
+    const opts = {
+      bufferCommands: false,
+    };
+    console.log("Connecting to MongoDB (initializing new connection)...");
+    cached.promise = mongoose.connect(MONGODB_URI, opts).then((m) => {
+      console.log("MongoDB Connected successfully");
+      return m;
+    });
+  }
+
+  try {
+    cached.conn = await cached.promise;
+    if (!cached.seeded) {
+      cached.seeded = true;
+      await seedDefaultClinicAndUser();
+    }
+  } catch (e) {
+    cached.promise = null;
+    cached.conn = null;
+    cached.seeded = false;
+    console.error("Failed to establish MongoDB connection:", e);
+    throw e;
+  }
+
+  return cached.conn;
 }

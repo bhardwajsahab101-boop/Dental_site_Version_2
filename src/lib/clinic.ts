@@ -33,13 +33,13 @@ export async function getClinic() {
     // Safety fallback for empty/unseeded database to prevent server crash
     return {
       id: "fallback-id",
-      clinicName: "Bright Smile Clinic",
-      name: "Bright Smile Clinic",
-      email: "support@brightsmile.com",
+      clinicName: "Dental Clinic",
+      name: "Dental Clinic",
+      email: "support@clinic.com",
       phone: "+91 99999 99999",
-      address: "123 Health Ave, Medical District",
+      address: "Clinic Address",
       logo: "",
-      slug: "bright-smile",
+      slug: "default",
     };
   }
 

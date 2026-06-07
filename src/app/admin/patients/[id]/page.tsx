@@ -1582,10 +1582,10 @@ export default function PatientProfilePage({ params }: Props) {
                   <span className="text-2xl">🦷</span>
                   <div>
                     <h2 className="text-base font-bold text-slate-800 tracking-tight uppercase">
-                      {clinicSettings?.name || "Bright Smile Clinic"}
+                      {clinicSettings?.name || "Dental Clinic"}
                     </h2>
                     <p className="text-[9px] text-slate-400 font-medium">
-                      {clinicSettings?.address || "123 Health Ave, Medical District"}
+                      {clinicSettings?.address || "Clinic Address"}
                       {clinicSettings?.phone && ` • ${clinicSettings.phone}`}
                       {clinicSettings?.email && ` • ${clinicSettings.email}`}
                       {clinicSettings?.gstNumber && ` • GSTIN: ${clinicSettings.gstNumber}`}
@@ -1610,9 +1610,9 @@ export default function PatientProfilePage({ params }: Props) {
                 </div>
                 <div className="text-right">
                   <h4 className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Clinic Details:</h4>
-                  <p className="font-bold text-slate-800 mt-1">Bright Smile Dental Clinic</p>
-                  <p className="text-slate-500 mt-0.5">support@brightsmile.com</p>
-                  <p className="text-slate-500">Live Billing System</p>
+                  <p className="font-bold text-slate-800 mt-1">{clinicSettings?.name || "Dental Clinic"}</p>
+                  <p className="text-slate-500 mt-0.5">{clinicSettings?.email || "Clinic Email"}</p>
+                  <p className="text-slate-500">{clinicSettings?.phone || "Clinic Phone"}</p>
                 </div>
               </div>
 
@@ -1687,7 +1687,7 @@ export default function PatientProfilePage({ params }: Props) {
 
               {/* Invoice Footer note */}
               <div className="border-t border-slate-100 pt-4 text-center">
-                <p className="text-[9px] text-slate-400 italic">Thank you for choosing Bright Smile. Get in touch for any queries.</p>
+                <p className="text-[9px] text-slate-400 italic">Thank you for choosing {clinicSettings?.name || "our clinic"}. Get in touch for any queries.</p>
               </div>
             </div>
 

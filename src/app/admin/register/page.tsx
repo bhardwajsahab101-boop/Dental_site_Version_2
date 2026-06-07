@@ -21,9 +21,25 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [loadingUser, setLoadingUser] = useState(true);
  
   useEffect(() => {
     setMounted(true);
+    async function checkAuth() {
+      try {
+        const res = await fetch("/api/admin/me");
+        const data = await res.json();
+        if (data.success && data.user && data.user.role === "admin") {
+          setLoadingUser(false);
+        } else {
+          window.location.href = "/admin/login";
+        }
+      } catch (err) {
+        console.error("Auth check failed:", err);
+        window.location.href = "/admin/login";
+      }
+    }
+    checkAuth();
   }, []);
  
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -69,13 +85,17 @@ export default function RegisterPage() {
     }
   };
  
-  if (!mounted) {
-    return null;
+  if (!mounted || loadingUser) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-800" />
+      </div>
+    );
   }
  
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 py-10">
-      <div className="w-full max-w-lg bg-white border border-slate-100 rounded-2xl shadow-xl p-6 sm:p-8 space-y-6">
+    <div className="flex items-center justify-center py-6">
+      <div className="w-full bg-white border border-slate-100 rounded-2xl shadow-xl p-6 sm:p-8 space-y-6" style={{ maxWidth: "600px" }}>
         {/* Logo and Headings */}
         <div className="text-center space-y-1.5">
           <div className="inline-flex items-center justify-center h-10 w-10 bg-slate-900 text-white rounded-xl text-lg font-bold">

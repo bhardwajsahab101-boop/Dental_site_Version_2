@@ -1,4 +1,7 @@
+"use client";
+
 import React from "react";
+import { usePathname } from "next/navigation";
 import Sidebar from "../../components/admin/Sidebar";
 import Topbar from "../../components/admin/Topbar";
 
@@ -7,6 +10,15 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+  const isPublicPage =
+    pathname === "/admin/login" ||
+    pathname === "/admin/login/";
+
+  if (isPublicPage) {
+    return <>{children}</>;
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
       {/* Sidebar Navigation */}
@@ -27,3 +39,4 @@ export default function AdminLayout({
     </div>
   );
 }
+

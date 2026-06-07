@@ -14,7 +14,7 @@ const clinicSettingsSchema = new Schema<IClinicSettings>(
     name: {
       type: String,
       required: true,
-      default: "Bright Smile Clinic",
+      default: "Dental Clinic",
     },
     logo: {
       type: String,
@@ -28,12 +28,12 @@ const clinicSettingsSchema = new Schema<IClinicSettings>(
     email: {
       type: String,
       required: true,
-      default: "support@brightsmile.com",
+      default: "support@clinic.com",
     },
     address: {
       type: String,
       required: true,
-      default: "123 Health Ave, Medical District",
+      default: "Clinic Address",
     },
     gstNumber: {
       type: String,

@@ -175,7 +175,7 @@ export default function ClinicSettingsPage() {
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Bright Smile Dental"
+              placeholder="e.g. Apex Dental Clinic"
               className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700"
             />
           </div>
@@ -243,7 +243,7 @@ export default function ClinicSettingsPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="e.g. billing@brightsmile.com"
+              placeholder="e.g. billing@clinic.com"
               className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700"
             />
           </div>

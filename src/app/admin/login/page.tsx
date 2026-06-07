@@ -53,14 +53,21 @@ export default function LoginPage() {
         
         // If we logged in to a subdomain that is different from our clinic slug
         if (user.clinicSlug !== currentSlug) {
-          // Bypassing subdomain redirect for local development if localhost is used without subdomains
-          if (currentHost.startsWith("localhost")) {
+          // For local development on localhost, if we logged in on flat localhost, we stay on localhost:3000/admin
+          if (currentHost.startsWith("localhost") && currentSlug === "default") {
             window.location.href = "/admin";
             return;
           }
 
-          // If our clinic slug is bright-smile and we are on the main domain (default slug), we can stay
-          if (user.clinicSlug === "bright-smile" && currentSlug === "default") {
+          // For local development on localhost, redirect to the wildcard lvh.me loopback domain so subdomains work out of the box
+          if (currentHost.startsWith("localhost")) {
+            const port = currentHost.split(":")[1] || "3000";
+            window.location.href = `${window.location.protocol}//${user.clinicSlug}.lvh.me:${port}/admin`;
+            return;
+          }
+
+          // If our clinic slug is default and we are on the main domain (default slug), we can stay
+          if (user.clinicSlug === "default" && currentSlug === "default") {
             window.location.href = "/admin";
             return;
           }
