@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { FadeUp } from "../components/ui/motion";
 
-export default function Hero() {
+export default function Hero({ clinic }: { clinic?: any }) {
+  const clinicName = clinic?.clinicName || clinic?.name || "Trusted Dental Clinic";
   return (
     <section
       id="home"
@@ -26,7 +27,7 @@ export default function Hero() {
         {/* LEFT: headline -> description -> CTAs -> compact stats row */}
         <FadeUp className="w-full flex-1 lg:order-1">
           <p className="mb-3 text-sm font-semibold uppercase tracking-wide text-blue-600">
-            Trusted Dental Clinic
+            {clinicName}
           </p>
 
           <h1 className="mb-5 text-4xl font-bold leading-tight text-gray-900 md:text-5xl">

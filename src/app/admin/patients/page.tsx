@@ -46,12 +46,13 @@ type FormData = {
 };
 
 type Treatmentform = {
-TreatmentName: string;
-Diagnosis: string;
-ToothNumber: string;
-Cost: string;
-Notes: string;
-Status: string;
+  TreatmentName: string;
+  Diagnosis: string;
+  ToothNumber: string;
+  Cost: string;
+  PaidAmount: string;
+  Notes: string;
+  Status: string;
 };
 type Notice = {
   type: "success" | "error";
@@ -66,13 +67,16 @@ export default function PatientsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [showTreatmentForm, setShowTreatmentForm] = useState(false);
   const [treatmentForm, setTreatmentForm] = useState<Treatmentform>({
-  TreatmentName: "",
-  Diagnosis: "",
-  ToothNumber: "",
-  Cost: "",
-  Notes: "",
-  Status: "planned",
-  })
+    TreatmentName: "",
+    Diagnosis: "",
+    ToothNumber: "",
+    Cost: "",
+    PaidAmount: "",
+    Notes: "",
+    Status: "planned",
+  });
+  const [selectedPatientForTreatment, setSelectedPatientForTreatment] = useState<Patient | null>(null);
+  const [treatmentSubmitting, setTreatmentSubmitting] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState<FormData>({
@@ -257,6 +261,104 @@ export default function PatientsPage() {
       });
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleTreatmentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPatientForTreatment) return;
+
+    setNotice(null);
+    setTreatmentSubmitting(true);
+
+    try {
+      const treatmentName = treatmentForm.TreatmentName.trim();
+      const diagnosis = treatmentForm.Diagnosis.trim();
+      const toothNumber = treatmentForm.ToothNumber.trim();
+      const cost = Number(treatmentForm.Cost || 0);
+      const paidAmount = Number(treatmentForm.PaidAmount || 0);
+
+      if (!treatmentName) {
+        setNotice({ type: "error", message: "Treatment Name is required." });
+        setTreatmentSubmitting(false);
+        return;
+      }
+      if (!diagnosis) {
+        setNotice({ type: "error", message: "Diagnosis is required." });
+        setTreatmentSubmitting(false);
+        return;
+      }
+      if (!toothNumber) {
+        setNotice({ type: "error", message: "Tooth Number is required." });
+        setTreatmentSubmitting(false);
+        return;
+      }
+      if (Number.isNaN(cost) || cost < 0) {
+        setNotice({ type: "error", message: "Cost must be a valid positive number." });
+        setTreatmentSubmitting(false);
+        return;
+      }
+      if (Number.isNaN(paidAmount) || paidAmount < 0) {
+        setNotice({ type: "error", message: "Paid Amount must be a valid positive number." });
+        setTreatmentSubmitting(false);
+        return;
+      }
+
+      const res = await fetch("/api/treatment", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          patientId: selectedPatientForTreatment._id,
+          treatmentName,
+          diagnosis,
+          toothNumber,
+          cost,
+          paidAmount,
+          notes: treatmentForm.Notes.trim(),
+          status: treatmentForm.Status,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.message || "Failed to create treatment");
+      }
+
+      setNotice({
+        type: "success",
+        message: `✓ Treatment "${treatmentName}" added successfully for ${selectedPatientForTreatment.fullName}!`,
+      });
+
+      // Reset & close
+      setShowTreatmentForm(false);
+      setSelectedPatientForTreatment(null);
+      setTreatmentForm({
+        TreatmentName: "",
+        Diagnosis: "",
+        ToothNumber: "",
+        Cost: "",
+        PaidAmount: "",
+        Notes: "",
+        Status: "planned",
+      });
+
+      // Reload patients to refresh visit status / statistics
+      const refreshRes = await fetch("/api/patients", { cache: "no-store" });
+      const refreshData = await refreshRes.json().catch(() => null);
+      if (refreshData?.success) {
+        setPatients((refreshData.data || []) as Patient[]);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setNotice({
+        type: "error",
+        message: err.message || "Failed to add treatment",
+      });
+    } finally {
+      setTreatmentSubmitting(false);
     }
   };
 
@@ -759,17 +861,35 @@ export default function PatientsPage() {
                       {patient.lastVisit ? new Date(patient.lastVisit).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }) : "No visits"}
                     </td>
                     <td className="py-3.5 px-4 text-xs text-right">
-                      <div className="flex items-center justify-end gap-2.5">
+                      <div className="flex items-center justify-end gap-3">
                         <button
                           type="button"
                           onClick={() => {
                             const patientId = patient?._id ? String(patient._id) : "";
                             if (patientId) router.push(`/admin/patients/${patientId}`);
                           }}
-                          className="inline-flex items-center gap-0.5 text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors"
+                          className="inline-flex items-center text-xs font-bold px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition-all"
                         >
-                          View Details
-                          <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          View
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedPatientForTreatment(patient);
+                            setTreatmentForm({
+                              TreatmentName: "",
+                              Diagnosis: "",
+                              ToothNumber: "",
+                              Cost: "",
+                              PaidAmount: "",
+                              Notes: "",
+                              Status: "planned",
+                            });
+                            setShowTreatmentForm(true);
+                          }}
+                          className="inline-flex items-center text-xs font-bold px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition-all"
+                        >
+                          Add Treatment
                         </button>
                       </div>
                     </td>
@@ -785,6 +905,167 @@ export default function PatientsPage() {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Add Treatment Modal */}
+      {showTreatmentForm && selectedPatientForTreatment && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-200 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-800">
+                  Quick Add Treatment
+                </h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  For patient: <span className="font-semibold text-indigo-600">{selectedPatientForTreatment.fullName}</span> ({selectedPatientForTreatment.patientCode ?? selectedPatientForTreatment._id})
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowTreatmentForm(false);
+                  setSelectedPatientForTreatment(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+                type="button"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleTreatmentSubmit} className="space-y-4">
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Treatment Name <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  value={treatmentForm.TreatmentName}
+                  onChange={(e) => setTreatmentForm(prev => ({ ...prev, TreatmentName: e.target.value }))}
+                  required
+                  placeholder="e.g. Dental Cleaning"
+                  className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Diagnosis <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  value={treatmentForm.Diagnosis}
+                  onChange={(e) => setTreatmentForm(prev => ({ ...prev, Diagnosis: e.target.value }))}
+                  required
+                  placeholder="e.g. Gingivitis, plaque accumulation"
+                  className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Tooth Number(s) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    value={treatmentForm.ToothNumber}
+                    onChange={(e) => setTreatmentForm(prev => ({ ...prev, ToothNumber: e.target.value }))}
+                    required
+                    placeholder="e.g. 14, 15 or General"
+                    className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Treatment Status
+                  </label>
+                  <select
+                    value={treatmentForm.Status}
+                    onChange={(e) => setTreatmentForm(prev => ({ ...prev, Status: e.target.value }))}
+                    className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700"
+                  >
+                    <option value="planned">Planned</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Cost (₹) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    value={treatmentForm.Cost}
+                    onChange={(e) => setTreatmentForm(prev => ({ ...prev, Cost: e.target.value }))}
+                    required
+                    min={0}
+                    placeholder="Total treatment cost"
+                    className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Paid Amount (₹)
+                  </label>
+                  <input
+                    type="number"
+                    value={treatmentForm.PaidAmount}
+                    onChange={(e) => setTreatmentForm(prev => ({ ...prev, PaidAmount: e.target.value }))}
+                    min={0}
+                    placeholder="Paid amount (default 0)"
+                    className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Treatment Notes
+                </label>
+                <textarea
+                  value={treatmentForm.Notes}
+                  onChange={(e) => setTreatmentForm(prev => ({ ...prev, Notes: e.target.value }))}
+                  placeholder="Notes, recommendations, prescriptions..."
+                  className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700 resize-none"
+                  rows={3}
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowTreatmentForm(false);
+                    setSelectedPatientForTreatment(null);
+                  }}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={treatmentSubmitting}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-75 disabled:cursor-not-allowed text-white rounded-xl text-xs font-semibold shadow-sm flex items-center gap-1.5 transition-all"
+                >
+                  {treatmentSubmitting ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      Save Treatment
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

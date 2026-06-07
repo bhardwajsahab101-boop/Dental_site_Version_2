@@ -1,6 +1,11 @@
 import Link from "next/link";
+import { getClinic } from "../../lib/clinic";
 
-export default function BookingSuccessPage() {
+export const dynamic = "force-dynamic";
+
+export default async function BookingSuccessPage() {
+  const clinic = await getClinic();
+
   return (
     <section className="min-h-screen bg-gradient-to-b from-blue-50 to-white flex items-center justify-center px-6">
 
@@ -22,7 +27,7 @@ export default function BookingSuccessPage() {
         <p className="text-gray-600 text-lg leading-relaxed mb-8">
           Thank you for choosing{" "}
           <span className="font-semibold text-blue-600">
-            City Dental Group
+            {clinic.clinicName}
           </span>
           .
           <br />
@@ -49,7 +54,7 @@ export default function BookingSuccessPage() {
             </p>
 
             <p className="font-semibold text-gray-900">
-              +1 (212) 425-0505
+              {clinic.phone}
             </p>
           </div>
         </div>
@@ -65,7 +70,7 @@ export default function BookingSuccessPage() {
           </Link>
 
           <Link
-            href="/booking"
+            href="/Booking"
             className="border border-gray-300 px-8 py-4 rounded-xl font-semibold hover:bg-gray-100 transition"
           >
             Book Another Appointment

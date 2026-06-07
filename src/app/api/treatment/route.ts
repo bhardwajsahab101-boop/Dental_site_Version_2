@@ -1,26 +1,38 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "../../../lib/mongodb";
 import { Treatment, computePaymentFields } from "../../../models/treatment";
-
+import { getCurrentClinic } from "../../../lib/auth";
+import { logActivity } from "../../../lib/audit";
+ 
 export const dynamic = "force-dynamic";
-
+ 
 export async function GET(req: Request) {
   try {
+    const clinicId = await getCurrentClinic();
+    if (!clinicId) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized access" },
+        { status: 401 }
+      );
+    }
+ 
     await connectDB();
-
+ 
     const { searchParams } = new URL(req.url);
     const patientId = searchParams.get("patientId");
-
-    const query: any = {};
+ 
+    const clinicFilter = { clinicId, deletedAt: null };
+ 
+    const query: any = { ...clinicFilter };
     if (patientId) {
       query.patientId = patientId;
     }
-
+ 
     const treatments = await Treatment.find(query)
       .populate("patientId")
       .populate("appointmentId")
       .sort({ createdAt: -1 });
-
+ 
     return NextResponse.json({
       success: true,
       treatments,
@@ -33,11 +45,19 @@ export async function GET(req: Request) {
     );
   }
 }
-
+ 
 export async function POST(req: Request) {
   try {
+    const clinicId = await getCurrentClinic();
+    if (!clinicId) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized access" },
+        { status: 401 }
+      );
+    }
+ 
     await connectDB();
-
+ 
     const body = await req.json();
     const {
       patientId,
@@ -50,18 +70,19 @@ export async function POST(req: Request) {
       notes,
       status,
     } = body;
-
+ 
     if (!patientId || !treatmentName || !diagnosis || !toothNumber) {
       return NextResponse.json(
         { success: false, message: "Missing required fields" },
         { status: 400 }
       );
     }
-
+ 
     // Run financial fields calculation
     const financialFields = computePaymentFields(Number(cost || 0), paidAmount);
-
+ 
     const treatment = await Treatment.create({
+      clinicId,
       patientId,
       appointmentId: appointmentId || null,
       treatmentName,
@@ -72,6 +93,14 @@ export async function POST(req: Request) {
       ...financialFields,
     });
 
+    // Log the activity
+    await logActivity(
+      "Create Treatment",
+      `Added ${treatment.treatmentName} treatment costing ₹${treatment.cost} (Paid: ₹${treatment.paidAmount})`,
+      String(treatment._id),
+      "Treatment"
+    );
+ 
     return NextResponse.json(
       {
         success: true,

@@ -15,13 +15,27 @@ import { StatsSkeleton } from "../../components/admin/Skeletons";
 
 export default function AdminDashboard() {
   const [dashboardData, setDashboardData] = useState<any>(null);
+  const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
     fetchDashboardData();
+    fetchUser();
   }, []);
+
+  async function fetchUser() {
+    try {
+      const res = await fetch("/api/admin/me");
+      const data = await res.json();
+      if (data.success) {
+        setUser(data.user);
+      }
+    } catch (err) {
+      console.error("Failed to fetch user in dashboard:", err);
+    }
+  }
 
   async function fetchDashboardData() {
     try {
@@ -74,7 +88,11 @@ export default function AdminDashboard() {
         <div className="space-y-2">
           <h1 className="text-lg font-extrabold tracking-tight flex items-center space-x-1.5">
             <span>👋</span>
-            <span>Welcome, Receptionist Portal</span>
+            <span>
+              Welcome, {user?.name || "Clinic Staff"} (
+              {user?.role ? `${user.role.charAt(0).toUpperCase() + user.role.slice(1)} Portal` : "Clinic Portal"}
+              )
+            </span>
           </h1>
           <p className="text-slate-400 text-xs font-semibold">
             Manage your clinic operations, billing, and scheduling seamlessly.
@@ -438,6 +456,58 @@ export default function AdminDashboard() {
               )}
             </div>
           </div>
+
+          {/* Recent Activity Panel */}
+          <div className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-50 pb-2">
+              <h3 className="text-xs font-extrabold text-slate-805 flex items-center space-x-1.5">
+                <span className="text-sm">⚡</span>
+                <span>Recent Clinic Activity</span>
+              </h3>
+              <span className="text-[9px] font-bold text-slate-400">Live Audits</span>
+            </div>
+
+            <div className="space-y-3">
+              {loading ? (
+                [...Array(3)].map((_, i) => (
+                  <div key={i} className="h-12 bg-slate-50 rounded-lg animate-pulse" />
+                ))
+              ) : !dashboardData?.recentActivity || dashboardData.recentActivity.length === 0 ? (
+                <p className="text-[11px] text-slate-400 italic py-1">No recent activities recorded.</p>
+              ) : (
+                <div className="relative border-l border-slate-100 pl-3.5 space-y-3.5 ml-1">
+                  {dashboardData.recentActivity.map((log: any) => {
+                    const dateObj = new Date(log.createdAt);
+                    const timeLabel = isNaN(dateObj.getTime())
+                      ? "Just now"
+                      : dateObj.toLocaleTimeString("en-US", {
+                          hour: "numeric",
+                          minute: "2-digit",
+                        });
+
+                    return (
+                      <div key={log._id} className="relative group text-[11px]">
+                        {/* Dot */}
+                        <span className="absolute -left-[18.5px] top-1 w-1.5 h-1.5 bg-indigo-500 rounded-full border border-white ring-2 ring-white shadow-sm shrink-0" />
+                        <div>
+                          <p className="font-bold text-slate-800">
+                            {log.action}
+                          </p>
+                          <p className="text-slate-500 text-[10px] leading-relaxed mt-0.5">
+                            {log.details}
+                          </p>
+                          <span className="text-[8.5px] text-slate-450 font-semibold block mt-0.5">
+                            {log.userName} ({log.userRole}) • {timeLabel}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
         </div>
       </div>
     </div>

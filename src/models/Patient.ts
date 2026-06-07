@@ -2,7 +2,16 @@ import mongoose, { Schema, Document, Model } from "mongoose";
 
 export type PatientGender = "Male" | "Female" | "Other";
 
+export interface IPatientDocument {
+    name: string;
+    category: "X-Rays" | "Reports" | "Prescriptions" | "Photos" | "Other";
+    url: string;
+    uploadedAt: Date;
+    uploadedBy: string;
+}
+
 export interface IPatient extends Document {
+    clinicId?: mongoose.Types.ObjectId;
     fullName: string;
     patientCode: string;
 
@@ -14,12 +23,21 @@ export interface IPatient extends Document {
     address?: string;
     medicalNotes?: string;
     allergies?: string;
+    documents?: IPatientDocument[];
+    deletedAt?: Date | null;
+    deletedBy?: mongoose.Types.ObjectId | null;
     createdAt: Date;
     updatedAt: Date;
 }
 
 const patientSchema = new Schema<IPatient>(
     {
+        clinicId: {
+            type: Schema.Types.ObjectId,
+            ref: "Clinic",
+            required: false,
+            index: true,
+        },
         fullName: {
             type: String,
             required: true,
@@ -28,7 +46,6 @@ const patientSchema = new Schema<IPatient>(
         patientCode: {
             type: String,
             required: true,
-            unique: true,
             trim: true,
         },
         phone: {
@@ -61,13 +78,37 @@ const patientSchema = new Schema<IPatient>(
             type: String,
             trim: true,
         },
+        documents: [
+            {
+                name: { type: String, required: true },
+                category: {
+                    type: String,
+                    enum: ["X-Rays", "Reports", "Prescriptions", "Photos", "Other"],
+                    required: true,
+                },
+                url: { type: String, required: true },
+                uploadedAt: { type: Date, default: Date.now },
+                uploadedBy: { type: String, required: true },
+            },
+        ],
+        deletedAt: {
+            type: Date,
+            default: null,
+        },
+        deletedBy: {
+            type: Schema.Types.ObjectId,
+            ref: "User",
+            default: null,
+        },
     },
     {
         timestamps: true,
     }
 );
 
+// Compound unique index for multi-tenant patient code uniqueness
+patientSchema.index({ clinicId: 1, patientCode: 1 }, { unique: true });
+
 export const Patient =
     (mongoose.models.Patient as Model<IPatient>) ||
     mongoose.model<IPatient>("Patient", patientSchema);
-

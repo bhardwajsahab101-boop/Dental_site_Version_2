@@ -1,6 +1,11 @@
 import { clinicData } from "../data/clinicData";
 
-export default function Footer() {
+export default function Footer({ clinic }: { clinic?: any }) {
+  const clinicName = clinic?.clinicName || clinic?.name || clinicData.clinicName;
+  const phone = clinic?.phone || clinicData.contact.phone;
+  const email = clinic?.email || clinicData.contact.email;
+  const address = clinic?.address || clinicData.contact.address;
+
   return (
     <footer className="bg-gray-900 text-white">
       <div className="mx-auto grid max-w-7xl gap-12 px-6 py-16 md:grid-cols-2 lg:grid-cols-4">
@@ -8,7 +13,7 @@ export default function Footer() {
         {/* Clinic Info */}
         <div>
           <h2 className="mb-4 text-2xl font-bold">
-            {clinicData.clinicName}
+            {clinicName}
           </h2>
 
           <p className="leading-relaxed text-gray-400">
@@ -74,11 +79,11 @@ export default function Footer() {
           </h3>
 
           <div className="space-y-4 text-gray-400">
-            <p>{clinicData.contact.phone}</p>
+            <p>{phone}</p>
 
-            <p>{clinicData.contact.email}</p>
+            <p>{email}</p>
 
-            <p>{clinicData.contact.address}</p>
+            <p>{address}</p>
           </div>
         </div>
 
@@ -88,7 +93,7 @@ export default function Footer() {
       <div className="border-t border-gray-800">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-6 py-8 text-sm text-gray-500 md:flex-row">
           <p>
-            © 2026 {clinicData.clinicName}. All rights reserved.
+            © 2026 {clinicName}. All rights reserved.
           </p>
 
           <p className="text-center md:text-left">

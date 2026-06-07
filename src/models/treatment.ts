@@ -1,6 +1,7 @@
 import mongoose, { Document, Schema, Model } from "mongoose";
 
 export interface ITreatment extends Document {
+  clinicId?: mongoose.Types.ObjectId;
   patientId: Schema.Types.ObjectId;
   appointmentId?: Schema.Types.ObjectId | null;
 
@@ -15,6 +16,8 @@ export interface ITreatment extends Document {
   paymentStatus: "paid" | "partial" | "unpaid";
 
   status: "planned" | "in_progress" | "completed" | "cancelled";
+  deletedAt?: Date | null;
+  deletedBy?: mongoose.Types.ObjectId | null;
 
   createdAt: Date;
   updatedAt: Date;
@@ -50,6 +53,12 @@ export function computePaymentFields(cost: number, paidAmount?: number | null | 
 
 const treatmentSchema = new Schema<ITreatment>(
   {
+    clinicId: {
+      type: Schema.Types.ObjectId,
+      ref: "Clinic",
+      required: false,
+      index: true,
+    },
     patientId: {
       type: Schema.Types.ObjectId,
       ref: "Patient",
@@ -112,6 +121,15 @@ const treatmentSchema = new Schema<ITreatment>(
       type: String,
       enum: ["planned", "in_progress", "completed", "cancelled"],
       default: "planned",
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
     },
   },
   {

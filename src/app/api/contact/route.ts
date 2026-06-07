@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "../../../lib/mongodb";
 import { ContactMessage } from "../../../models/ContactMessage";
+import { Clinic } from "../../../models/Clinic";
 import { notifyContactFormSubmitted } from "../../../lib/notifications";
-
+ 
 // Simple HTML escaping to sanitize string inputs
 function sanitizeString(str: string): string {
   if (typeof str !== "string") return "";
@@ -14,17 +15,33 @@ function sanitizeString(str: string): string {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
 }
-
+ 
 // Simple email validation regex
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
+ 
 export async function POST(req: Request) {
   try {
     await connectDB();
-
+ 
+    // Resolve clinicId from host header
+    const host = req.headers.get("host") || "";
+    let slug = "default";
+    const parts = host.split(".");
+    if (parts.length > 2 || (host.includes("localhost") && parts.length > 1)) {
+      if (parts[0] !== "www") {
+        slug = parts[0].split(":")[0];
+      }
+    }
+    
+    let clinic = await Clinic.findOne({ slug: slug.toLowerCase() });
+    if (!clinic) {
+      clinic = await Clinic.findOne();
+    }
+    const clinicId = clinic?._id || undefined;
+ 
     const body = await req.json();
     const { fullName, email, message } = body;
-
+ 
     // Validation checks
     if (!fullName || typeof fullName !== "string" || fullName.trim().length < 2) {
       return NextResponse.json(
@@ -32,34 +49,35 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-
+ 
     if (!email || !EMAIL_REGEX.test(email)) {
       return NextResponse.json(
         { success: false, message: "Please provide a valid email address." },
         { status: 400 }
       );
     }
-
+ 
     if (!message || typeof message !== "string" || message.trim().length < 10) {
       return NextResponse.json(
         { success: false, message: "Message must be at least 10 characters long." },
         { status: 400 }
       );
     }
-
+ 
     // Sanitization
     const cleanName = sanitizeString(fullName);
     const cleanEmail = sanitizeString(email).toLowerCase();
     const cleanMessage = sanitizeString(message);
-
-    // Save to Database
+ 
+    // Save to Database with clinicId
     const newMessage = await ContactMessage.create({
+      clinicId,
       fullName: cleanName,
       email: cleanEmail,
       message: cleanMessage,
       status: "unread",
     });
-
+ 
     // Trigger Notification
     try {
       await notifyContactFormSubmitted({
@@ -70,7 +88,7 @@ export async function POST(req: Request) {
     } catch (notifErr) {
       console.error("Failed to send notification for contact message:", notifErr);
     }
-
+ 
     return NextResponse.json(
       {
         success: true,

@@ -1,57 +1,47 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { connectDB } from "../../../lib/mongodb";
 import { ContactMessage } from "../../../models/ContactMessage";
-import { verifyJWT } from "../../../lib/auth";
-
-// Secure helper to verify admin session
-async function isAuthenticated(): Promise<boolean> {
-  try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get("admin_token")?.value;
-    const secret = process.env.JWT_SECRET;
-    
-    if (!token || !secret) {
-      return false;
-    }
-
-    const verified = await verifyJWT(token, secret);
-    return !!verified;
-  } catch (error) {
-    console.error("Auth check error:", error);
-    return false;
-  }
-}
-
+import { getCurrentClinic } from "../../../lib/auth";
+ 
+export const dynamic = "force-dynamic";
+ 
 export async function GET(req: Request) {
   try {
-    if (!(await isAuthenticated())) {
+    const clinicId = await getCurrentClinic();
+    if (!clinicId) {
       return NextResponse.json({ success: false, message: "Unauthorized access" }, { status: 401 });
     }
-
+ 
     await connectDB();
-
+ 
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
     const query = searchParams.get("q");
-
+ 
+    const clinicFilter = { clinicId };
+ 
     // Build DB filter query
-    const filter: Record<string, unknown> = {};
-
+    const filter: Record<string, any> = { ...clinicFilter };
+ 
     if (status && ["unread", "read", "replied"].includes(status)) {
       filter.status = status;
     }
-
+ 
     if (query) {
-      filter.$or = [
-        { fullName: { $regex: query, $options: "i" } },
-        { email: { $regex: query, $options: "i" } },
-        { message: { $regex: query, $options: "i" } },
+      filter.$and = [
+        clinicFilter,
+        {
+          $or: [
+            { fullName: { $regex: query, $options: "i" } },
+            { email: { $regex: query, $options: "i" } },
+            { message: { $regex: query, $options: "i" } },
+          ]
+        }
       ];
     }
-
-    const messages = await ContactMessage.find(filter as any).sort({ createdAt: -1 });
-
+ 
+    const messages = await ContactMessage.find(filter).sort({ createdAt: -1 });
+ 
     return NextResponse.json({
       success: true,
       messages,
@@ -64,42 +54,45 @@ export async function GET(req: Request) {
     );
   }
 }
-
+ 
 export async function PATCH(req: Request) {
   try {
-    if (!(await isAuthenticated())) {
+    const clinicId = await getCurrentClinic();
+    if (!clinicId) {
       return NextResponse.json({ success: false, message: "Unauthorized access" }, { status: 401 });
     }
-
+ 
     await connectDB();
-
+ 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
-
+ 
     if (!id) {
       return NextResponse.json({ success: false, message: "Message ID is required" }, { status: 400 });
     }
-
+ 
     const body = await req.json();
     const { status } = body;
-
+ 
     if (!status || !["unread", "read", "replied"].includes(status)) {
       return NextResponse.json(
         { success: false, message: "Invalid status. Must be unread, read, or replied." },
         { status: 400 }
       );
     }
-
-    const updatedMessage = await ContactMessage.findByIdAndUpdate(
-      id,
+ 
+    const clinicFilter = { clinicId };
+ 
+    const updatedMessage = await ContactMessage.findOneAndUpdate(
+      { _id: id, ...clinicFilter },
       { status },
       { new: true, runValidators: true }
     );
-
+ 
     if (!updatedMessage) {
       return NextResponse.json({ success: false, message: "Message not found" }, { status: 404 });
     }
-
+ 
     return NextResponse.json({
       success: true,
       message: "Message status updated successfully",
@@ -113,28 +106,31 @@ export async function PATCH(req: Request) {
     );
   }
 }
-
+ 
 export async function DELETE(req: Request) {
   try {
-    if (!(await isAuthenticated())) {
+    const clinicId = await getCurrentClinic();
+    if (!clinicId) {
       return NextResponse.json({ success: false, message: "Unauthorized access" }, { status: 401 });
     }
-
+ 
     await connectDB();
-
+ 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
-
+ 
     if (!id) {
       return NextResponse.json({ success: false, message: "Message ID is required" }, { status: 400 });
     }
-
-    const deletedMessage = await ContactMessage.findByIdAndDelete(id);
-
+ 
+    const clinicFilter = { clinicId };
+ 
+    const deletedMessage = await ContactMessage.findOneAndDelete({ _id: id, ...clinicFilter });
+ 
     if (!deletedMessage) {
       return NextResponse.json({ success: false, message: "Message not found" }, { status: 404 });
     }
-
+ 
     return NextResponse.json({
       success: true,
       message: "Message deleted successfully",

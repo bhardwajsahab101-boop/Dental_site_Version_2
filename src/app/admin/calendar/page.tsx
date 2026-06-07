@@ -22,7 +22,7 @@ interface Appointment {
   appointmentDate: string;
   appointmentTime?: string;
   message?: string;
-  status: "pending" | "confirmed" | "completed" | "cancelled";
+  status: "requested" | "confirmed" | "arrived" | "in_treatment" | "completed" | "no_show" | "cancelled";
   createdAt: string;
 }
 
@@ -216,12 +216,18 @@ export default function AdminCalendarPage() {
 
   const getStatusColorClass = (status: Appointment["status"]) => {
     switch (status) {
-      case "pending":
+      case "requested":
         return "bg-amber-500";
       case "confirmed":
         return "bg-blue-500";
+      case "arrived":
+        return "bg-indigo-500";
+      case "in_treatment":
+        return "bg-purple-500";
       case "completed":
         return "bg-emerald-500";
+      case "no_show":
+        return "bg-slate-500";
       case "cancelled":
         return "bg-rose-500";
       default:
@@ -402,12 +408,18 @@ export default function AdminCalendarPage() {
                   </span>
                   <span
                     className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border shrink-0 ${
-                      selectedAppointment.status === "pending"
+                      selectedAppointment.status === "requested" || (selectedAppointment.status as string) === "pending"
                         ? "bg-amber-50 text-amber-600 border-amber-100"
                         : selectedAppointment.status === "confirmed"
                         ? "bg-blue-50 text-blue-600 border-blue-100"
+                        : selectedAppointment.status === "arrived"
+                        ? "bg-indigo-50 text-indigo-600 border-indigo-100"
+                        : selectedAppointment.status === "in_treatment"
+                        ? "bg-purple-50 text-purple-650 border-purple-100"
                         : selectedAppointment.status === "completed"
-                        ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-100"
+                        : selectedAppointment.status === "no_show"
+                        ? "bg-slate-100 text-slate-600 border-slate-200"
                         : "bg-rose-50 text-rose-600 border-rose-100"
                     }`}
                   >
@@ -516,10 +528,13 @@ export default function AdminCalendarPage() {
                     onChange={(e) => updateStatus(selectedAppointment._id, e.target.value)}
                     className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-200 focus:border-slate-900 rounded-xl p-2.5 text-xs text-slate-850 font-semibold focus:outline-none transition-colors appearance-none cursor-pointer pr-10"
                   >
-                    <option value="pending">⏳ Pending review</option>
-                    <option value="confirmed">📅 Confirm Appointment</option>
-                    <option value="completed">✅ Complete Visit</option>
-                    <option value="cancelled">❌ Cancel Appointment</option>
+                    <option value="requested">⏳ Requested</option>
+                    <option value="confirmed">📅 Confirmed</option>
+                    <option value="arrived">🏥 Arrived</option>
+                    <option value="in_treatment">🩺 In Treatment</option>
+                    <option value="completed">✅ Completed</option>
+                    <option value="no_show">🚫 No Show</option>
+                    <option value="cancelled">❌ Cancelled</option>
                   </select>
                   <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-450">
                     <Loader2 className={`h-4 w-4 animate-spin ${updatingId === selectedAppointment._id ? "block" : "hidden"}`} />

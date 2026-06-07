@@ -3,17 +3,33 @@ import { connectDB } from "../../../lib/mongodb";
 import { Appointment } from "../../../models/Appointment";
 import { Patient } from "../../../models/Patient";
 import { Counter } from "../../../models/Counter";
-
+import { getCurrentClinic } from "../../../lib/auth";
+import { Clinic } from "../../../models/Clinic";
+import { logActivity } from "../../../lib/audit";
+ 
 export const dynamic = "force-dynamic";
-
+ 
 export async function GET() {
   try {
+    const clinicId = await getCurrentClinic();
+    if (!clinicId) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized access" },
+        { status: 401 }
+      );
+    }
+ 
     await connectDB();
-
-    // Self-heal/link legacy appointments that are missing patientId
-    const unlinkedAppointments = await Appointment.find({ patientId: { $exists: false } });
+ 
+    const clinicFilter = { clinicId, deletedAt: null };
+ 
+    // Self-heal/link legacy appointments that are missing patientId within clinic
+    const unlinkedAppointments = await Appointment.find({
+      ...clinicFilter,
+      patientId: { $exists: false },
+    });
     if (unlinkedAppointments.length > 0) {
-      const patients = await Patient.find({});
+      const patients = await Patient.find(clinicFilter);
       for (const appt of unlinkedAppointments) {
         const legacyAppt = appt as any;
         if (legacyAppt.phone && legacyAppt.fullName) {
@@ -23,24 +39,24 @@ export async function GET() {
             return pPhoneClean === apptPhoneClean && p.fullName.toLowerCase() === legacyAppt.fullName.toLowerCase();
           });
           if (matchingPatient) {
-            await Appointment.findByIdAndUpdate(appt._id, { $set: { patientId: matchingPatient._id } });
+            await Appointment.findByIdAndUpdate(appt._id, { $set: { patientId: matchingPatient._id, clinicId } });
           }
         }
       }
     }
-
-    const appointments = await Appointment.find()
+ 
+    const appointments = await Appointment.find(clinicFilter)
       .populate("patientId")
       .sort({ createdAt: -1 })
       .lean();
-
+ 
     return NextResponse.json({
       success: true,
       appointments,
     });
   } catch (error) {
     console.error("GET appointments error:", error);
-
+ 
     return NextResponse.json(
       {
         success: false,
@@ -50,14 +66,15 @@ export async function GET() {
     );
   }
 }
-
+ 
 export async function POST(req: Request) {
   try {
     await connectDB();
-
+ 
     const body = await req.json();
-
+ 
     const {
+      clinicId: bodyClinicId,
       patientId, // Passed when booking from patient profile
       fullName,
       phone,
@@ -73,11 +90,44 @@ export async function POST(req: Request) {
       notes,
     } = body;
 
-    let patient;
+    // Resolve clinicId: check body, host header, logged-in session, then DB default
+    let resolvedClinicId = bodyClinicId;
+    
+    if (!resolvedClinicId) {
+      const host = req.headers.get("host") || "";
+      let slug = "default";
+      const parts = host.split(".");
+      if (parts.length > 2 || (host.includes("localhost") && parts.length > 1)) {
+        if (parts[0] !== "www") {
+          slug = parts[0].split(":")[0];
+        }
+      }
+      const clinicFromHost = await Clinic.findOne({ slug: slug.toLowerCase() });
+      if (clinicFromHost) {
+        resolvedClinicId = String(clinicFromHost._id);
+      }
+    }
 
+    if (!resolvedClinicId) {
+      resolvedClinicId = await getCurrentClinic();
+    }
+
+    if (!resolvedClinicId) {
+      const defaultClinic = await Clinic.findOne();
+      if (defaultClinic) {
+        resolvedClinicId = String(defaultClinic._id);
+      }
+    }
+
+    const clinicId = resolvedClinicId || undefined;
+ 
+    const clinicFilter = { clinicId, deletedAt: null };
+ 
+    let patient;
+ 
     if (patientId) {
       // Flow A: Book directly for an existing patient
-      patient = await Patient.findById(patientId);
+      patient = await Patient.findOne({ _id: patientId, ...clinicFilter });
       if (!patient) {
         return NextResponse.json(
           {
@@ -98,42 +148,40 @@ export async function POST(req: Request) {
           { status: 400 }
         );
       }
-
+ 
       const cleanedPhone = phone.trim().replace(/\D/g, "");
       const cleanedName = fullName.trim();
-
-      // Search existing patient by case-insensitive full name first,
-      // then verify phone digits match (handles formatted phone numbers)
+ 
+      // Search existing patient within clinic scope
       const nameRegex = new RegExp(
         `^${cleanedName.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&")}$`,
         "i"
       );
-
-      const candidates = await Patient.find({ fullName: nameRegex });
+ 
+      const candidates = await Patient.find({ fullName: nameRegex, ...clinicFilter });
       patient = candidates.find((p: any) => {
         if (!p.phone) return false;
         const pPhoneClean = p.phone.trim().replace(/\D/g, "");
         return pPhoneClean === cleanedPhone;
       });
-
-      // Fallback: try direct phone match (if name differs slightly)
+ 
+      // Fallback: try direct phone match within clinic
       if (!patient) {
-        patient = await Patient.findOne({ phone: cleanedPhone });
+        patient = await Patient.findOne({ phone: cleanedPhone, ...clinicFilter });
       }
-
+ 
       // Create patient if not found
       if (!patient) {
-        // Atomic patient code generation using modern returnDocument option
         const counter = await Counter.findOneAndUpdate(
-          { name: "patient" },
+          { name: `patient_${clinicId || "default"}` },
           { $inc: { sequence: 1 } },
           { returnDocument: "after", upsert: true }
         );
         const patientCode = `PAT-${String(counter.sequence).padStart(3, "0")}`;
-
-        // Create patient; handle rare duplicate patientCode by retrying once
+ 
         try {
           patient = await Patient.create({
+            clinicId,
             fullName: cleanedName,
             patientCode,
             phone: cleanedPhone,
@@ -144,13 +192,12 @@ export async function POST(req: Request) {
             medicalNotes,
             allergies,
           });
-
+ 
           console.log("New patient created:", patient._id);
         } catch (err: any) {
-          // If duplicate key on patientCode (rare race), increment counter again and retry once
-          if (err?.code === 11000 && err?.keyValue?.patientCode) {
+          if (err?.code === 11000) {
             const counter2 = await Counter.findOneAndUpdate(
-              { name: "patient" },
+              { name: `patient_${clinicId || "default"}` },
               { $inc: { sequence: 1 } },
               { returnDocument: "after", upsert: true }
             );
@@ -158,6 +205,7 @@ export async function POST(req: Request) {
             const patientCode2 = `PAT-${String(seq2).padStart(3, "0")}`;
             try {
               patient = await Patient.create({
+                clinicId,
                 fullName: cleanedName,
                 patientCode: patientCode2,
                 phone: cleanedPhone,
@@ -170,23 +218,26 @@ export async function POST(req: Request) {
               });
               console.log("New patient created after retry:", patient._id);
             } catch (err2: any) {
-              // If retry also collides, best-effort: find the already-created patient by phone/name
               if (err2?.code === 11000) {
                 const fallbackNameRegex = new RegExp(
                   `^${cleanedName.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&")}$`,
                   "i"
                 );
                 patient = await Patient.findOne({
-                  $or: [
-                    { phone: cleanedPhone },
-                    { fullName: fallbackNameRegex },
-                  ],
+                  $and: [
+                    clinicFilter,
+                    {
+                      $or: [
+                        { phone: cleanedPhone },
+                        { fullName: fallbackNameRegex },
+                      ],
+                    }
+                  ]
                 });
-
+ 
                 if (patient) {
                   console.log("Using existing patient found after retry collision:", patient._id);
                 } else {
-                  // If still not found, rethrow the original error
                   throw err2;
                 }
               } else {
@@ -201,7 +252,7 @@ export async function POST(req: Request) {
         console.log("Existing patient found:", patient._id);
       }
     }
-
+ 
     if (!service || !appointmentDate || !appointmentTime) {
       return NextResponse.json(
         {
@@ -211,19 +262,27 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-
-    // Standardized appointment structure only (no legacy fullName, phone, email fields)
+ 
+    // Create appointment inside clinic context
     const appointment = await Appointment.create({
+      clinicId,
       patientId: patient._id,
       service,
       appointmentDate: new Date(appointmentDate),
       appointmentTime,
-      status: "pending",
+      status: "requested",
       notes: notes || "",
     });
 
+    await logActivity(
+      "Create Appointment",
+      `Scheduled appointment for ${patient.fullName}: ${appointment.service} on ${appointmentDate} at ${appointmentTime}`,
+      String(appointment._id),
+      "Appointment"
+    );
+ 
     console.log("Appointment created:", appointment._id);
-
+ 
     return NextResponse.json(
       {
         success: true,
@@ -235,7 +294,7 @@ export async function POST(req: Request) {
     );
   } catch (error: any) {
     console.error("POST appointments error:", error);
-
+ 
     return NextResponse.json(
       {
         success: false,

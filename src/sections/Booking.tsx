@@ -14,7 +14,7 @@ type FormElement =
 const inputStyles =
   "w-full border border-gray-200 p-4 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-100 transition";
 
-export default function Booking() {
+export default function Booking({ clinic }: { clinic?: any }) {
   const [formData, setFormData] = useState({
     // Patient fields
     fullName: "",
@@ -67,7 +67,10 @@ export default function Booking() {
             "Content-Type":
               "application/json",
           },
-          body: JSON.stringify(formData),
+          body: JSON.stringify({
+            ...formData,
+            clinicId: clinic?.id || clinic?._id,
+          }),
         }
       );
 

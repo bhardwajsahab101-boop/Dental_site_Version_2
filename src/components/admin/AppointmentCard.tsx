@@ -26,7 +26,7 @@ interface Appointment {
   appointmentDate: string;
   appointmentTime?: string;
   notes?: string;
-  status: "pending" | "confirmed" | "completed" | "cancelled";
+  status: "requested" | "confirmed" | "arrived" | "in_treatment" | "completed" | "no_show" | "cancelled";
   createdAt: string;
   updatedAt: string;
 }
@@ -47,14 +47,20 @@ export default function AppointmentCard({
 
   const getStatusStyles = (status: Appointment["status"]) => {
     switch (status) {
-      case "pending":
-        return "bg-amber-50 text-amber-700 border-amber-150";
+      case "requested":
+        return "bg-amber-50 text-amber-700 border-amber-100";
       case "confirmed":
-        return "bg-blue-50 text-blue-700 border-blue-150";
+        return "bg-blue-50 text-blue-700 border-blue-100";
+      case "arrived":
+        return "bg-indigo-50 text-indigo-700 border-indigo-100";
+      case "in_treatment":
+        return "bg-purple-50 text-purple-700 border-purple-100";
       case "completed":
-        return "bg-emerald-50 text-emerald-700 border-emerald-150";
+        return "bg-emerald-50 text-emerald-700 border-emerald-100";
+      case "no_show":
+        return "bg-slate-100 text-slate-600 border-slate-200";
       case "cancelled":
-        return "bg-rose-50 text-rose-700 border-rose-150";
+        return "bg-rose-50 text-rose-700 border-rose-100";
       default:
         return "bg-slate-50 text-slate-700 border-slate-150";
     }
@@ -173,9 +179,12 @@ export default function AppointmentCard({
               onChange={(e) => onUpdateStatus(appointment._id, e.target.value)}
               className="w-full bg-slate-50 hover:bg-slate-100/80 border border-slate-100 rounded-lg px-2.5 py-1 text-[11px] font-semibold text-slate-700 focus:outline-none transition-colors disabled:opacity-50 appearance-none cursor-pointer pr-8"
             >
-              <option value="pending">⏳ Pending</option>
+              <option value="requested">⏳ Requested</option>
               <option value="confirmed">📅 Confirmed</option>
+              <option value="arrived">🏥 Arrived</option>
+              <option value="in_treatment">🩺 In Treatment</option>
               <option value="completed">✅ Completed</option>
+              <option value="no_show">🚫 No Show</option>
               <option value="cancelled">❌ Cancelled</option>
             </select>
             <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">

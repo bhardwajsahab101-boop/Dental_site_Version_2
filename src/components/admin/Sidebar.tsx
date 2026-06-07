@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import toast from "react-hot-toast";
@@ -12,22 +12,56 @@ import {
   Activity,
   LogOut,
   TrendingUp,
-  Settings
+  Settings,
+  Users,
+  Coins
 } from "lucide-react";
+import { hasPageAccess } from "../../lib/permissions";
 
 export default function Sidebar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    async function fetchUser() {
+      try {
+        const res = await fetch("/api/admin/me");
+        const data = await res.json();
+        if (data.success) {
+          setUser(data.user);
+        }
+      } catch (err) {
+        console.error("Failed to fetch user context in sidebar:", err);
+      }
+    }
+    fetchUser();
+  }, []);
+
+  const role = user?.role || "receptionist";
+  const userName = user?.name || "Clinic Staff";
+  const userInitials = userName
+    .split(" ")
+    .map((n: string) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2) || "AD";
 
   const navigation = [
     { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
     { name: "Appointments", href: "/admin/appointments", icon: Calendar },
     { name: "Calendar", href: "/admin/calendar", icon: Calendar },
+    { name: "Finance", href: "/admin/finance", icon: Coins },
     { name: "Analytics", href: "/admin/analytics", icon: TrendingUp },
     { name: "Messages", href: "/admin/messages", icon: Activity },
     { name: "Patients", href: "/admin/patients", icon: LogOut },
-    { name: "Settings", href: "/admin/settings", icon: Settings }
+    { name: "Staff Management", href: "/admin/users", icon: Users },
+    { name: "Settings", href: "/admin/settings", icon: Settings },
+    { name: "Register Clinic", href: "/admin/register", icon: Settings }
   ];
+
+  // Filter navigation items by page access rules based on user role
+  const filteredNavigation = navigation.filter((item) => hasPageAccess(role, item.href));
 
   const isActive = (href: string) => {
     if (href === "/admin") {
@@ -93,20 +127,20 @@ export default function Sidebar() {
               <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center space-x-2">
                   <span className="text-lg">🦷</span>
-                  <span className="text-[14px] font-semibold text-slate-950 tracking-tight">
+                  <span className="text-[14px] font-semibold text-slate-955 tracking-tight">
                     Dental Clinic
                   </span>
                 </div>
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="p-1 text-slate-400 hover:text-slate-950 focus:outline-none"
+                  className="p-1 text-slate-400 hover:text-slate-955 focus:outline-none"
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
 
               <nav className="space-y-1">
-                {navigation.map((item) => {
+                {filteredNavigation.map((item) => {
                   const Icon = item.icon;
                   return (
                     <Link
@@ -126,13 +160,13 @@ export default function Sidebar() {
             <div className="border-t border-slate-50 pt-4 flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <div className="h-6.5 w-6.5 bg-slate-100 rounded-full flex items-center justify-center text-slate-600 font-semibold text-[10px]">
-                  AD
+                  {userInitials}
                 </div>
                 <div>
-                  <p className="text-[11px] font-semibold text-slate-800 leading-none">
-                    Receptionist
+                  <p className="text-[11px] font-semibold text-slate-800 leading-none truncate max-w-[120px]">
+                    {userName}
                   </p>
-                  <span className="text-[9px] text-slate-400">Admin Account</span>
+                  <span className="text-[9px] text-slate-400 capitalize">{role} Portal</span>
                 </div>
               </div>
               <button
@@ -160,7 +194,7 @@ export default function Sidebar() {
 
           {/* Nav links */}
           <nav className="space-y-0.5">
-            {navigation.map((item) => {
+            {filteredNavigation.map((item) => {
               const Icon = item.icon;
               return (
                 <Link
@@ -178,21 +212,21 @@ export default function Sidebar() {
 
         {/* Footer profile area with Logout button */}
         <div className="border-t border-slate-100 pt-3 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <div className="h-7 w-7 bg-slate-100 rounded-full flex items-center justify-center text-slate-700 font-semibold text-[11px] border border-slate-200/50">
-              AD
+          <div className="flex items-center space-x-2 min-w-0">
+            <div className="h-7 w-7 bg-slate-100 rounded-full flex items-center justify-center text-slate-705 font-semibold text-[11px] border border-slate-200/50 shrink-0">
+              {userInitials}
             </div>
-            <div className="overflow-hidden">
-              <p className="text-[11px] font-semibold text-slate-850 truncate leading-none">
-                Receptionist
+            <div className="overflow-hidden min-w-0">
+              <p className="text-[11px] font-semibold text-slate-850 truncate leading-none" title={userName}>
+                {userName}
               </p>
-              <span className="text-[9px] text-slate-400 font-medium">Dental Office</span>
+              <span className="text-[9px] text-slate-400 font-medium capitalize mt-0.5 block">{role} Portal</span>
             </div>
           </div>
           <button
             onClick={handleLogout}
             title="Log Out"
-            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50/50 rounded-lg transition-all focus:outline-none"
+            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50/50 rounded-lg transition-all focus:outline-none shrink-0"
           >
             <LogOut className="h-4 w-4 shrink-0" />
           </button>

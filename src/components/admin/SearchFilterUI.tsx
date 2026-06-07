@@ -13,9 +13,12 @@ interface SearchFilterUIProps {
   services: string[];
   statusCounts: {
     all: number;
-    pending: number;
+    requested: number;
     confirmed: number;
+    arrived: number;
+    in_treatment: number;
     completed: number;
+    no_show: number;
     cancelled: number;
   };
 }
@@ -32,9 +35,12 @@ export default function SearchFilterUI({
 }: SearchFilterUIProps) {
   const tabs = [
     { id: "all", name: "All", count: statusCounts.all },
-    { id: "pending", name: "Pending", count: statusCounts.pending },
+    { id: "requested", name: "Requested", count: statusCounts.requested },
     { id: "confirmed", name: "Confirmed", count: statusCounts.confirmed },
+    { id: "arrived", name: "Arrived", count: statusCounts.arrived },
+    { id: "in_treatment", name: "In Treatment", count: statusCounts.in_treatment },
     { id: "completed", name: "Completed", count: statusCounts.completed },
+    { id: "no_show", name: "No Show", count: statusCounts.no_show },
     { id: "cancelled", name: "Cancelled", count: statusCounts.cancelled },
   ];
 

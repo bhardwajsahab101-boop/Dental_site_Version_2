@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import toast from "react-hot-toast";
 import { Eye, EyeOff, Loader2, Lock, Mail } from "lucide-react";
 
@@ -27,7 +28,7 @@ export default function LoginPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
       });
 
       const data = await res.json();
@@ -37,7 +38,45 @@ export default function LoginPage() {
       }
 
       toast.success("Welcome back! Redirecting...");
-      // Redirect to admin panel
+      
+      // Subdomain-aware redirection
+      const user = data.user;
+      if (user && user.role !== "admin" && user.clinicSlug) {
+        const currentHost = window.location.host;
+        const parts = currentHost.split(".");
+        let currentSlug = "default";
+        if (parts.length > 2 || (currentHost.includes("localhost") && parts.length > 1)) {
+          if (parts[0] !== "www") {
+            currentSlug = parts[0].split(":")[0].toLowerCase();
+          }
+        }
+        
+        // If we logged in to a subdomain that is different from our clinic slug
+        if (user.clinicSlug !== currentSlug) {
+          // Bypassing subdomain redirect for local development if localhost is used without subdomains
+          if (currentHost.startsWith("localhost")) {
+            window.location.href = "/admin";
+            return;
+          }
+
+          // If our clinic slug is bright-smile and we are on the main domain (default slug), we can stay
+          if (user.clinicSlug === "bright-smile" && currentSlug === "default") {
+            window.location.href = "/admin";
+            return;
+          }
+
+          let mainDomain = currentHost;
+          if (currentSlug !== "default") {
+            mainDomain = parts.slice(1).join(".");
+          }
+          
+          const protocol = window.location.protocol;
+          window.location.href = `${protocol}//${user.clinicSlug}.${mainDomain}/admin`;
+          return;
+        }
+      }
+
+      // Default redirect to current domain admin dashboard
       window.location.href = "/admin";
     } catch (err: unknown) {
       console.error(err);
@@ -129,6 +168,14 @@ export default function LoginPage() {
             <span>{loading ? "Signing in..." : "Sign In"}</span>
           </button>
         </form>
+ 
+        {/* Link to register page */}
+        <div className="text-center text-[11px] text-slate-400">
+          Want to register a new clinic?{" "}
+          <Link href="/admin/register" className="font-semibold text-slate-800 hover:underline">
+            Register here
+          </Link>
+        </div>
       </div>
     </div>
   );

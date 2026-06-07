@@ -28,7 +28,7 @@ interface Appointment {
   appointmentDate: string;
   appointmentTime?: string;
   notes?: string;
-  status: "pending" | "confirmed" | "completed" | "cancelled";
+  status: "requested" | "confirmed" | "arrived" | "in_treatment" | "completed" | "no_show" | "cancelled";
   createdAt: string;
   updatedAt: string;
 }
@@ -114,9 +114,12 @@ export default function AppointmentsPage() {
   // Calculate global status counts
   const statusCounts = {
     all: appointments.length,
-    pending: appointments.filter((a) => a.status === "pending").length,
+    requested: appointments.filter((a) => a.status === "requested" || (a.status as string) === "pending").length,
     confirmed: appointments.filter((a) => a.status === "confirmed").length,
+    arrived: appointments.filter((a) => a.status === "arrived").length,
+    in_treatment: appointments.filter((a) => a.status === "in_treatment").length,
     completed: appointments.filter((a) => a.status === "completed").length,
+    no_show: appointments.filter((a) => a.status === "no_show").length,
     cancelled: appointments.filter((a) => a.status === "cancelled").length,
   };
 
@@ -207,9 +210,12 @@ export default function AppointmentsPage() {
           {/* Stats KPI Panel */}
           <StatsCards
             total={statusCounts.all}
-            pending={statusCounts.pending}
+            requested={statusCounts.requested}
             confirmed={statusCounts.confirmed}
+            arrived={statusCounts.arrived}
+            inTreatment={statusCounts.in_treatment}
             completed={statusCounts.completed}
+            noShow={statusCounts.no_show}
             cancelled={statusCounts.cancelled}
           />
 

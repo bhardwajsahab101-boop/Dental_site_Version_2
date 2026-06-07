@@ -3,16 +3,25 @@ import { connectDB } from "../../../../lib/mongodb";
 import { Patient } from "../../../../models/Patient";
 import { Treatment } from "../../../../models/treatment";
 import { Appointment } from "../../../../models/Appointment";
-
+import { getCurrentClinic } from "../../../../lib/auth";
+ 
 export const dynamic = "force-dynamic";
-
+ 
 export async function GET(req: Request) {
   try {
+    const clinicId = await getCurrentClinic();
+    if (!clinicId) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized access" },
+        { status: 401 }
+      );
+    }
+ 
     await connectDB();
-
+ 
     const { searchParams } = new URL(req.url);
     const query = searchParams.get("q") || "";
-
+ 
     if (!query.trim()) {
       return NextResponse.json({
         success: true,
@@ -23,22 +32,26 @@ export async function GET(req: Request) {
         },
       });
     }
-
+ 
     const regex = new RegExp(query, "i");
-
-    // 1. Search Patients
+ 
+    const clinicFilter = { clinicId, deletedAt: null };
+ 
+    // 1. Search Patients within Clinic
     const patients = await Patient.find({
+      ...clinicFilter,
       $or: [
         { fullName: regex },
         { phone: regex },
         { patientCode: regex },
       ],
     }).limit(6);
-
+ 
     const patientIds = patients.map((p) => p._id);
-
-    // 2. Search Treatments
+ 
+    // 2. Search Treatments within Clinic
     const treatments = await Treatment.find({
+      ...clinicFilter,
       $or: [
         { treatmentName: regex },
         { diagnosis: regex },
@@ -47,9 +60,10 @@ export async function GET(req: Request) {
     } as any)
       .populate("patientId")
       .limit(6);
-
-    // 3. Search Appointments
+ 
+    // 3. Search Appointments within Clinic
     const appointments = await Appointment.find({
+      ...clinicFilter,
       $or: [
         { service: regex },
         { notes: regex },
@@ -58,7 +72,7 @@ export async function GET(req: Request) {
     } as any)
       .populate("patientId")
       .limit(6);
-
+ 
     return NextResponse.json({
       success: true,
       results: {

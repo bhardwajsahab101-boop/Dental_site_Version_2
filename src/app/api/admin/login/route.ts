@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
-import { signJWT } from "../../../../lib/auth";
-
+import { signJWT, hashPassword } from "../../../../lib/auth";
+import { connectDB } from "../../../../lib/mongodb";
+import { User } from "../../../../models/User";
+import { Clinic } from "../../../../models/Clinic";
+ 
 export async function POST(req: Request) {
   try {
     const { email, password } = await req.json();
-
-    const adminEmail = process.env.ADMIN_EMAIL;
-    const adminPassword = process.env.ADMIN_PASSWORD;
     const jwtSecret = process.env.JWT_SECRET;
-
-    if (!adminEmail || !adminPassword || !jwtSecret) {
-      console.error("Missing environment variables: ADMIN_EMAIL, ADMIN_PASSWORD, or JWT_SECRET");
+ 
+    if (!jwtSecret) {
+      console.error("Missing environment variable: JWT_SECRET");
       return NextResponse.json(
         {
           success: false,
@@ -19,8 +19,10 @@ export async function POST(req: Request) {
         { status: 500 }
       );
     }
+ 
+    const cleanEmail = email ? String(email).trim().toLowerCase() : "";
 
-    if (!email || !password) {
+    if (!cleanEmail || !password) {
       return NextResponse.json(
         {
           success: false,
@@ -29,9 +31,12 @@ export async function POST(req: Request) {
         { status: 400 }
       );
     }
-
-    // Compare credentials
-    if (email !== adminEmail || password !== adminPassword) {
+ 
+    await connectDB();
+ 
+    // Find user by email
+    const user = await User.findOne({ email: cleanEmail });
+    if (!user) {
       return NextResponse.json(
         {
           success: false,
@@ -41,14 +46,61 @@ export async function POST(req: Request) {
       );
     }
 
-    // Generate JWT token (expires in 24 hours)
-    const token = await signJWT({ email }, jwtSecret, 86400);
+    if (user.isActive === false) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Your account is disabled. Please contact the administrator.",
+        },
+        { status: 403 }
+      );
+    }
+ 
+    // Compare password hash
+    const inputPasswordHash = await hashPassword(password);
+    if (user.password !== inputPasswordHash) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Invalid email or password",
+        },
+        { status: 401 }
+      );
+    }
+ 
+    // Resolve clinic slug for subdomain matching
+    let clinicSlug = undefined;
+    if (user.clinicId) {
+      const clinic = await Clinic.findById(user.clinicId);
+      if (clinic) {
+        clinicSlug = clinic.slug;
+      }
+    }
 
+    // Generate JWT token (expires in 24 hours) containing clinicId, userId, role, and clinicSlug
+    const token = await signJWT(
+      {
+        email: user.email,
+        userId: String(user._id),
+        clinicId: user.clinicId ? String(user.clinicId) : undefined,
+        clinicSlug,
+        role: user.role,
+      },
+      jwtSecret,
+      86400
+    );
+ 
     const response = NextResponse.json({
       success: true,
       message: "Logged in successfully",
+      user: {
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        clinicSlug,
+      },
     });
-
+ 
     // Set HTTP-only secure cookie
     response.cookies.set("admin_token", token, {
       httpOnly: true,
@@ -57,7 +109,7 @@ export async function POST(req: Request) {
       path: "/",
       maxAge: 86400, // 1 day
     });
-
+ 
     return response;
   } catch (error) {
     console.error("Login API error:", error);

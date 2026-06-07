@@ -5,7 +5,7 @@ import Card from "../components/ui/card";
 import { FadeUp } from "../components/ui/motion";
 import SectionHeading from "../components/ui/section-heading";
 
-export default function Testimonials() {
+export default function Testimonials({ clinic }: { clinic?: any }) {
   return (
     <section id="testimonials" className="bg-white py-20">
       <div className="mx-auto max-w-7xl px-6">

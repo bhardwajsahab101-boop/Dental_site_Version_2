@@ -6,8 +6,10 @@ import { Menu, X } from "lucide-react";
 
 import { clinicData } from "../data/clinicData";
 
-export default function Navbar() {
+export default function Navbar({ clinic }: { clinic?: any }) {
   const [isOpen, setIsOpen] = useState(false);
+
+  const clinicName = clinic?.clinicName || clinic?.name || clinicData.clinicName;
 
   const navLinks = clinicData.navigation.map((item) => ({
     label: item.label,
@@ -28,7 +30,7 @@ export default function Navbar() {
           href="/#home"
           className="text-2xl font-bold tracking-tight text-blue-600"
         >
-          {clinicData.clinicName}
+          {clinicName}
         </Link>
 
         {/* DESKTOP NAVIGATION */}

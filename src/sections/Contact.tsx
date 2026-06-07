@@ -5,7 +5,11 @@ import { FadeUp } from "../components/ui/motion";
 import Card from "../components/ui/card";
 import SectionHeading from "../components/ui/section-heading";
 
-export default function Contact() {
+export default function Contact({ clinic }: { clinic?: any }) {
+  const phone = clinic?.phone || clinicData.contact.phone;
+  const email = clinic?.email || clinicData.contact.email;
+  const address = clinic?.address || clinicData.contact.address;
+
   return (
     <section id="contact" className="bg-[#f8fbff] py-20">
       <div className="mx-auto grid max-w-7xl gap-12 px-6 lg:grid-cols-2">
@@ -21,19 +25,19 @@ export default function Contact() {
               <div className="rounded-2xl border border-blue-100 bg-white/60 p-5">
                 <p className="text-sm font-semibold text-gray-900">Phone</p>
                 <p className="mt-1 break-words text-[15px] leading-relaxed text-gray-600">
-                  {clinicData.contact.phone}
+                  {phone}
                 </p>
               </div>
               <div className="rounded-2xl border border-blue-100 bg-white/60 p-5">
                 <p className="text-sm font-semibold text-gray-900">Email</p>
                 <p className="mt-1 break-words text-[15px] leading-relaxed text-gray-600">
-                  {clinicData.contact.email}
+                  {email}
                 </p>
               </div>
               <div className="rounded-2xl border border-blue-100 bg-white/60 p-5">
                 <p className="text-sm font-semibold text-gray-900">Address</p>
                 <p className="mt-1 text-[15px] leading-relaxed text-gray-600">
-                  {clinicData.contact.address}
+                  {address}
                 </p>
               </div>
             </div>

@@ -1,12 +1,15 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 
 export interface IAppointment extends Document {
+  clinicId?: mongoose.Types.ObjectId;
   patientId: mongoose.Types.ObjectId;
   service: string;
   appointmentDate: Date;
   appointmentTime: string;
   notes?: string;
-  status: "pending" | "confirmed" | "completed" | "cancelled";
+  status: "requested" | "confirmed" | "arrived" | "in_treatment" | "completed" | "no_show" | "cancelled";
+  deletedAt?: Date | null;
+  deletedBy?: mongoose.Types.ObjectId | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -16,6 +19,12 @@ export type AppointmentStatus = IAppointment["status"];
 
 const appointmentSchema = new Schema<IAppointment>(
   {
+    clinicId: {
+      type: Schema.Types.ObjectId,
+      ref: "Clinic",
+      required: false,
+      index: true,
+    },
     patientId: {
       type: Schema.Types.ObjectId,
       ref: "Patient",
@@ -41,14 +50,23 @@ const appointmentSchema = new Schema<IAppointment>(
 
     status: {
       type: String,
-      enum: ["pending", "confirmed", "completed", "cancelled"],
-      default: "pending",
+      enum: ["requested", "confirmed", "arrived", "in_treatment", "completed", "no_show", "cancelled"],
+      default: "requested",
     },
 
     notes: {
       type: String,
       default: "",
       trim: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+    deletedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
     },
   },
   {

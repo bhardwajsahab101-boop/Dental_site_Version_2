@@ -40,6 +40,7 @@ type Patient = {
   address?: string;
   medicalNotes?: string;
   allergies?: string;
+  documents?: any[];
 };
 
 type Appointment = {
@@ -70,6 +71,7 @@ type ProfileResponse = {
   patient?: Patient;
   appointments?: Appointment[];
   treatments?: Treatment[];
+  auditLogs?: any[];
   stats?: {
     totalAppointments: number;
     completedAppointments: number;
@@ -121,6 +123,7 @@ export default function PatientProfilePage({ params }: Props) {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [treatments, setTreatments] = useState<Treatment[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [treatmentStats, setTreatmentStats] = useState({
     totalTreatments: 0,
     completedTreatments: 0,
@@ -158,6 +161,12 @@ export default function PatientProfilePage({ params }: Props) {
 
   // Invoice States
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+
+  // Document Upload States
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [docCategory, setDocCategory] = useState<string>("X-Rays");
   const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [clinicSettings, setClinicSettings] = useState<any>(null);
@@ -182,6 +191,7 @@ export default function PatientProfilePage({ params }: Props) {
       setPatient(data.patient);
       setAppointments(data.appointments || []);
       setTreatments(data.treatments || []);
+      setAuditLogs(data.auditLogs || []);
       if (data.treatmentStats) {
         setTreatmentStats(data.treatmentStats);
       }
@@ -405,6 +415,134 @@ export default function PatientProfilePage({ params }: Props) {
     }
   };
 
+  const handleUploadDocument = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedFile) {
+      toast.error("Please select a file to upload");
+      return;
+    }
+
+    setUploadingDoc(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      formData.append("category", docCategory);
+
+      const res = await fetch(`/api/patients/${id}/documents`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Failed to upload document");
+      }
+
+      toast.success("Document uploaded successfully!");
+      setShowUploadModal(false);
+      setSelectedFile(null);
+      setDocCategory("X-Rays");
+      await load();
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Failed to upload document");
+    } finally {
+      setUploadingDoc(false);
+    }
+  };
+
+  const handleDeleteDocument = async (docId: string) => {
+    if (!window.confirm("Are you sure you want to delete this document?")) return;
+
+    try {
+      const res = await fetch(`/api/patients/${id}/documents?documentId=${docId}`, {
+        method: "DELETE",
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Failed to delete document");
+      }
+
+      toast.success("Document deleted successfully");
+      await load();
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Failed to delete document");
+    }
+  };
+
+
+  // Build unified chronological timeline items
+  const timelineItems = useMemo(() => {
+    const items: Array<{
+      id: string;
+      date: Date;
+      type: "appointment" | "treatment" | "document" | "activity";
+      title: string;
+      details: string;
+      status?: string;
+      meta?: any;
+    }> = [];
+
+    // Add Appointments
+    appointments.forEach((a) => {
+      const d = typeof a.appointmentDate === "string" ? new Date(a.appointmentDate) : a.appointmentDate;
+      items.push({
+        id: `appt-${a._id}`,
+        date: isNaN(d.getTime()) ? new Date() : d,
+        type: "appointment",
+        title: `Scheduled: ${a.service}`,
+        details: `Time: ${a.appointmentTime || "Not set"}. Notes: ${a.notes || "None"}`,
+        status: a.status,
+        meta: a,
+      });
+    });
+
+    // Add Treatments
+    treatments.forEach((t) => {
+      const d = new Date(t.createdAt);
+      items.push({
+        id: `treatment-${t._id}`,
+        date: isNaN(d.getTime()) ? new Date() : d,
+        type: "treatment",
+        title: `Procedure Plan: ${t.treatmentName}`,
+        details: `Diagnosis: ${t.diagnosis} (Tooth ${t.toothNumber}). Cost: ₹${t.cost}, Paid: ₹${t.paidAmount}. Notes: ${t.notes || "None"}`,
+        status: t.status,
+        meta: t,
+      });
+    });
+
+    // Add Documents (if any uploaded under patient)
+    const patientDocs = (patient as any)?.documents || [];
+    patientDocs.forEach((doc: any) => {
+      const d = new Date(doc.uploadedAt);
+      items.push({
+        id: `doc-${doc._id || doc.url}`,
+        date: isNaN(d.getTime()) ? new Date() : d,
+        type: "document",
+        title: `Uploaded Receipt: ${doc.name}`,
+        details: `Category: ${doc.category}. Uploaded by: ${doc.uploadedBy || "Clinic Staff"}`,
+        meta: doc,
+      });
+    });
+
+    // Add Notes / Status changes from Audit Logs
+    auditLogs.forEach((log) => {
+      const d = new Date(log.createdAt);
+      items.push({
+        id: `audit-${log._id}`,
+        date: isNaN(d.getTime()) ? new Date() : d,
+        type: "activity",
+        title: log.action,
+        details: `${log.details} by ${log.userName} (${log.userRole})`,
+        meta: log,
+      });
+    });
+
+    // Sort chronologically ascending
+    return items.sort((a, b) => a.date.getTime() - b.date.getTime());
+  }, [appointments, treatments, patient, auditLogs]);
 
   if (loading) {
     return (
@@ -865,57 +1003,182 @@ export default function PatientProfilePage({ params }: Props) {
             )}
           </section>
 
-          {/* Step 5: Patient Timeline */}
-          <section className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm space-y-6">
-            <div className="flex items-center gap-2 border-b border-slate-50 pb-3">
-              <Clock className="w-4.5 h-4.5 text-indigo-500" />
-              <h2 className="text-base font-semibold text-slate-800">Timeline History</h2>
+          {/* Patient Documents Section */}
+          <section className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-50 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm">📁</span>
+                <h2 className="text-base font-semibold text-slate-800">Patient Documents</h2>
+              </div>
+              <button
+                onClick={() => {
+                  setSelectedFile(null);
+                  setDocCategory("X-Rays");
+                  setShowUploadModal(true);
+                }}
+                type="button"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-sm transition-all hover:shadow cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Upload Document
+              </button>
             </div>
 
-            {appointments.length === 0 ? (
+            {!patient.documents || patient.documents.length === 0 ? (
+              <div className="bg-slate-50/50 border border-dashed border-slate-200 rounded-xl p-8 text-center text-sm text-slate-505">
+                No documents uploaded yet. Upload X-Rays, Reports, or Prescriptions.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {patient.documents.map((doc: any) => {
+                  let catColor = "bg-slate-100 text-slate-700 border-slate-200";
+                  if (doc.category === "X-Rays") catColor = "bg-blue-50 text-blue-700 border-blue-100";
+                  else if (doc.category === "Reports") catColor = "bg-emerald-50 text-emerald-700 border-emerald-100";
+                  else if (doc.category === "Prescriptions") catColor = "bg-purple-50 text-purple-700 border-purple-100";
+                  else if (doc.category === "Photos") catColor = "bg-pink-50 text-pink-700 border-pink-100";
+
+                  const d = new Date(doc.uploadedAt);
+                  const dateLabel = isNaN(d.getTime())
+                    ? "Unknown Date"
+                    : d.toLocaleDateString("en-US", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      });
+
+                  return (
+                    <div
+                      key={doc._id}
+                      className="bg-slate-50/40 hover:bg-slate-50 border border-slate-105 hover:border-slate-200/80 rounded-xl p-3 flex flex-col justify-between space-y-3 relative group transition-all"
+                    >
+                      <div className="min-w-0 space-y-1 bg-transparent">
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="text-xs font-bold text-slate-805 truncate pr-6" title={doc.name}>
+                            {doc.name}
+                          </h4>
+                          <button
+                            onClick={() => handleDeleteDocument(doc._id)}
+                            type="button"
+                            className="absolute top-3 right-3 p-1 hover:bg-rose-50 rounded-full text-slate-400 hover:text-rose-600 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                            title="Delete file"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className={`inline-flex items-center px-1.5 py-0.25 text-[8.5px] font-bold uppercase rounded border ${catColor}`}>
+                            {doc.category}
+                          </span>
+                          <span className="text-[9px] text-slate-400 font-semibold">
+                            Uploaded: {dateLabel}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100/40">
+                        <span className="text-[8.5px] text-slate-450 truncate max-w-[120px]" title={`By ${doc.uploadedBy}`}>
+                          By: {doc.uploadedBy}
+                        </span>
+                        <a
+                          href={doc.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[9.5px] font-extrabold text-indigo-650 hover:text-indigo-850 hover:underline"
+                        >
+                          <span>🔗 View Attachment</span>
+                        </a>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          {/* Step 5: Patient Timeline */}
+          <section className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-50 pb-3">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4.5 h-4.5 text-indigo-500" />
+                <h2 className="text-base font-semibold text-slate-800">Timeline History</h2>
+              </div>
+              <span className="text-[10px] bg-slate-50 border border-slate-200 text-slate-500 px-2 py-0.5 rounded-full font-bold">
+                {timelineItems.length} Events Total
+              </span>
+            </div>
+
+            {timelineItems.length === 0 ? (
               <div className="bg-slate-50/50 border border-dashed border-slate-200 rounded-xl p-8 text-center text-sm text-slate-500">
-                No appointment history records found.
+                No timeline records found.
               </div>
             ) : (
               <div className="relative pl-6 space-y-6 border-l-2 border-slate-100 ml-3">
-                {appointments.map((a) => {
-                  const dateObj = typeof a.appointmentDate === "string"
-                    ? new Date(a.appointmentDate)
-                    : a.appointmentDate;
+                {timelineItems.map((item) => {
+                  const dateLabel = item.date.toLocaleDateString("en-US", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric"
+                  }) + " " + item.date.toLocaleTimeString("en-US", {
+                    hour: "numeric",
+                    minute: "2-digit"
+                  });
 
-                  const dateLabel = isNaN(dateObj.getTime())
-                    ? String(a.appointmentDate)
-                    : dateObj.toLocaleDateString("en-US", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric"
-                    });
+                  // Setup indicators by event type
+                  let icon = "⚪";
+                  let typeColor = "bg-slate-105 text-slate-600 border-slate-200";
+                  let dotColor = "bg-slate-400 ring-slate-100";
+                  let cardBorder = "border-slate-100 hover:border-slate-200";
 
-                  const colors = getStatusColorStyles(a.status);
+                  if (item.type === "appointment") {
+                    icon = "📅";
+                    typeColor = "bg-blue-50 text-blue-700 border-blue-100";
+                    dotColor = "bg-blue-500 ring-blue-100";
+                    cardBorder = "border-blue-100/40 hover:border-blue-200";
+                  } else if (item.type === "treatment") {
+                    icon = "🩺";
+                    typeColor = "bg-emerald-50 text-emerald-700 border-emerald-100";
+                    dotColor = "bg-emerald-500 ring-emerald-100";
+                    cardBorder = "border-emerald-100/40 hover:border-emerald-200";
+                  } else if (item.type === "document") {
+                    icon = "📄";
+                    typeColor = "bg-indigo-50 text-indigo-700 border-indigo-100";
+                    dotColor = "bg-indigo-500 ring-indigo-100";
+                    cardBorder = "border-indigo-100/40 hover:border-indigo-200";
+                  } else if (item.type === "activity") {
+                    icon = "⚡";
+                    typeColor = "bg-amber-50 text-amber-700 border-amber-100";
+                    dotColor = "bg-amber-500 ring-amber-100";
+                    cardBorder = "border-amber-100/40 hover:border-amber-200";
+                  }
 
                   return (
-                    <div key={a._id} className="relative group animate-in fade-in duration-200">
+                    <div key={item.id} className="relative group animate-in fade-in duration-200">
                       {/* Timeline Dot Indicator */}
-                      <span className={`absolute -left-[31px] top-1.5 w-3.5 h-3.5 rounded-full border-2 border-white ring-4 ring-white ${colors.dot} shadow-sm shrink-0 transition-transform group-hover:scale-110`} />
+                      <span className={`absolute -left-[31px] top-2.5 w-3.5 h-3.5 rounded-full border-2 border-white ring-4 ring-white ${dotColor} shadow-sm shrink-0 transition-transform group-hover:scale-110`} />
 
-                      {/* Timeline Content Block */}
-                      <div className="bg-slate-50/40 hover:bg-slate-50 border border-slate-100 hover:border-slate-200/80 rounded-2xl p-4 transition-all duration-150 space-y-2">
+                      {/* Timeline Card Content */}
+                      <div className={`bg-slate-50/40 hover:bg-slate-50 border ${cardBorder} rounded-2xl p-4 transition-all duration-150 space-y-2`}>
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="text-[11px] font-bold text-slate-450 tracking-wide uppercase">
-                            {dateLabel} {a.appointmentTime && `• ${a.appointmentTime}`}
+                          <span className="text-[10px] font-bold text-slate-450 tracking-wide uppercase font-mono">
+                            {dateLabel}
                           </span>
-                          <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase rounded-full border ${colors.badge}`}>
-                            {a.status}
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className={`inline-flex items-center px-1.5 py-0.25 text-[8.5px] font-bold uppercase rounded border ${typeColor}`}>
+                              {icon} {item.type}
+                            </span>
+                            {item.status && (
+                              <span className="inline-flex items-center px-1.5 py-0.25 text-[8.5px] font-bold uppercase rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                                {item.status.replace("_", " ")}
+                              </span>
+                            )}
+                          </div>
                         </div>
 
                         <div>
-                          <h4 className="text-sm font-bold text-slate-800">{a.service}</h4>
-                          {a.notes && (
-                            <p className="text-xs text-slate-500 mt-1 italic border-l-2 border-slate-200 pl-2 leading-relaxed">
-                              "{a.notes}"
-                            </p>
-                          )}
+                          <h4 className="text-xs font-bold text-slate-800">{item.title}</h4>
+                          <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                            {item.details}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -1446,6 +1709,104 @@ export default function PatientProfilePage({ params }: Props) {
                 Print / Save PDF
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Document Upload Modal Overlay */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-100 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-800">Upload Patient Document</h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">Attach medical files, reports, or photos for {patient.fullName}</p>
+              </div>
+              <button
+                onClick={() => setShowUploadModal(false)}
+                className="text-slate-400 hover:text-slate-655 transition-colors"
+                type="button"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUploadDocument} className="space-y-4">
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Document Category
+                </label>
+                <select
+                  value={docCategory}
+                  onChange={(e) => setDocCategory(e.target.value)}
+                  required
+                  className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700"
+                >
+                  <option value="X-Rays">X-Rays</option>
+                  <option value="Reports">Reports</option>
+                  <option value="Prescriptions">Prescriptions</option>
+                  <option value="Photos">Photos</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Select File
+                </label>
+                <div className="border-2 border-dashed border-slate-200 hover:border-indigo-300 rounded-xl p-4 transition-colors text-center relative">
+                  <input
+                    type="file"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files.length > 0) {
+                        setSelectedFile(e.target.files[0]);
+                      }
+                    }}
+                    required
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                  <div className="text-xs text-slate-505 space-y-1">
+                    <p className="font-bold text-indigo-650">Click to upload or drag & drop</p>
+                    <p className="text-[10px] text-slate-400">PDF, PNG, JPG up to 10MB</p>
+                    {selectedFile && (
+                      <p className="text-[10px] font-semibold text-slate-700 bg-slate-100 px-2 py-1 rounded inline-block mt-2">
+                        📎 Selected: {selectedFile.name}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUploadModal(false);
+                    setSelectedFile(null);
+                  }}
+                  className="px-4 py-2 bg-slate-150 hover:bg-slate-200/85 text-slate-700 rounded-xl text-xs font-semibold transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={uploadingDoc}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-75 disabled:cursor-not-allowed text-white rounded-xl text-xs font-semibold shadow-sm hover:shadow transition-all flex items-center gap-1.5"
+                >
+                  {uploadingDoc ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      Upload File
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
