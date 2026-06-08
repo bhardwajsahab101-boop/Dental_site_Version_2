@@ -140,11 +140,7 @@ export default function PatientsPage() {
       }
 
       const digitsOnly = formData.phone.trim().replace(/\D/g, "");
-      if (digitsOnly.length !== 10) {
-        setNotice({ type: "error", message: "Phone must be exactly 10 digits." });
-        setSubmitting(false);
-        return;
-      }
+  
 
       if (!formData.gender || !["Male", "Female", "Other"].includes(formData.gender)) {
         setNotice({ type: "error", message: "Please select a valid gender." });
@@ -200,10 +196,10 @@ export default function PatientsPage() {
 
       // Check if the returned patient was already in the list to prevent duplicates in local state
       const exists = patients.some((p) => p._id === data.data._id);
-      
+
       let successMessage = "";
       if (exists) {
-        successMessage = bookAppointment 
+        successMessage = bookAppointment
           ? "✓ Patient already exists. Linked & Appointment booked successfully!"
           : "✓ Patient already exists. Linked successfully.";
       } else {
@@ -412,11 +408,10 @@ export default function PatientsPage() {
             setNotice(null);
           }}
           type="button"
-          className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm transition-all duration-200 ${
-            showForm
+          className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm transition-all duration-200 ${showForm
               ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
               : "bg-indigo-600 hover:bg-indigo-700 text-white"
-          }`}
+            }`}
         >
           {showForm ? (
             <>
@@ -450,7 +445,7 @@ export default function PatientsPage() {
 
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              
+
               {/* Group 1: Personal Details */}
               <div className="space-y-4">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 border-b border-slate-50 pb-1">
@@ -473,7 +468,6 @@ export default function PatientsPage() {
                       onChange={(e) =>
                         setFormData((p) => ({ ...p, fullName: e.target.value }))
                       }
-                      required
                       className="block w-full pl-9 pr-3 py-2 text-xs bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all placeholder:text-slate-400 text-slate-800"
                     />
                   </div>
@@ -495,7 +489,7 @@ export default function PatientsPage() {
                         onChange={(e) =>
                           setFormData((p) => ({ ...p, phone: e.target.value }))
                         }
-                        required
+                        
                         className="block w-full pl-9 pr-3 py-2 text-xs bg-slate-50/50 hover:bg-slate-50 focus:bg-white border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all placeholder:text-slate-400 text-slate-800"
                       />
                     </div>
@@ -783,11 +777,10 @@ export default function PatientsPage() {
       {/* Action Notification Notices */}
       {notice && (
         <div
-          className={`text-xs font-semibold rounded-xl px-4 py-3 border animate-in fade-in duration-200 ${
-            notice.type === "success"
+          className={`text-xs font-semibold rounded-xl px-4 py-3 border animate-in fade-in duration-200 ${notice.type === "success"
               ? "bg-green-50 border-green-200 text-green-800"
               : "bg-rose-50 border-rose-200 text-rose-700"
-          }`}
+            }`}
         >
           {notice.message}
         </div>

@@ -12,9 +12,63 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [clinicName, setClinicName] = useState("");
+  const [clinicLogo, setClinicLogo] = useState("");
+  const [clinicSlug, setClinicSlug] = useState("default");
+  const [callbackLoading, setCallbackLoading] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    
+    // Check if token callback is present in query parameters
+    const searchParams = new URLSearchParams(window.location.search);
+    const tokenParam = searchParams.get("token");
+
+    if (tokenParam) {
+      setCallbackLoading(true);
+      async function handleTokenCallback() {
+        try {
+          const res = await fetch("/api/admin/login/callback", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ token: tokenParam }),
+          });
+          const data = await res.json();
+          if (res.ok && data.success) {
+            toast.success("Welcome! Redirecting...");
+            window.location.href = "/admin";
+          } else {
+            throw new Error(data.message || "Failed to set login session");
+          }
+        } catch (err: any) {
+          toast.error(err.message || "Session initialization failed");
+          setCallbackLoading(false);
+        }
+      }
+      handleTokenCallback();
+      return;
+    }
+
+    async function loadClinic() {
+      try {
+        const res = await fetch("/api/clinic/info");
+        const data = await res.json();
+        if (data.success && data.clinic) {
+          setClinicName(data.clinic.name);
+          setClinicLogo(data.clinic.logo);
+          setClinicSlug(data.clinic.slug);
+          document.title = `${data.clinic.name} - Doctor Login`;
+        } else {
+          document.title = "Doctor Login";
+        }
+      } catch (err) {
+        console.error("Failed to load clinic info:", err);
+        document.title = "Doctor Login";
+      }
+    }
+    loadClinic();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -41,6 +95,7 @@ export default function LoginPage() {
       
       // Subdomain-aware redirection
       const user = data.user;
+      const token = data.token;
       if (user && user.role !== "admin" && user.clinicSlug) {
         const currentHost = window.location.host;
         const parts = currentHost.split(".");
@@ -51,18 +106,17 @@ export default function LoginPage() {
           }
         }
         
-        // If we logged in to a subdomain that is different from our clinic slug
-        if (user.clinicSlug !== currentSlug) {
-          // For local development on localhost, if we logged in on flat localhost, we stay on localhost:3000/admin
-          if (currentHost.startsWith("localhost") && currentSlug === "default") {
-            window.location.href = "/admin";
-            return;
-          }
-
-          // For local development on localhost, redirect to the wildcard lvh.me loopback domain so subdomains work out of the box
-          if (currentHost.startsWith("localhost")) {
+        const isVercel = currentHost.split(":")[0].toLowerCase().endsWith(".vercel.app") || currentHost.split(":")[0].toLowerCase() === "vercel.app";
+        // If we logged in to a subdomain that is different from our clinic slug (and not on Vercel deployment)
+        if (!isVercel && user.clinicSlug !== currentSlug) {
+          // For local development on localhost, 127.0.0.1, or lvh.me, redirect to the wildcard lvh.me loopback domain so subdomains work out of the box
+          if (
+            currentHost.startsWith("localhost") ||
+            currentHost.startsWith("127.0.0.1") ||
+            currentHost.includes("lvh.me")
+          ) {
             const port = currentHost.split(":")[1] || "3000";
-            window.location.href = `${window.location.protocol}//${user.clinicSlug}.lvh.me:${port}/admin`;
+            window.location.href = `${window.location.protocol}//${user.clinicSlug}.lvh.me:${port}/admin/login?token=${token}`;
             return;
           }
 
@@ -78,7 +132,7 @@ export default function LoginPage() {
           }
           
           const protocol = window.location.protocol;
-          window.location.href = `${protocol}//${user.clinicSlug}.${mainDomain}/admin`;
+          window.location.href = `${protocol}//${user.clinicSlug}.${mainDomain}/admin/login?token=${token}`;
           return;
         }
       }
@@ -95,6 +149,17 @@ export default function LoginPage() {
     }
   };
 
+  if (callbackLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="flex flex-col items-center space-y-2">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-900" />
+          <p className="text-slate-400 text-xs font-semibold">Setting up your session...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!mounted) {
     return null;
   }
@@ -104,12 +169,18 @@ export default function LoginPage() {
       <div className="w-full max-w-sm bg-white border border-slate-100 rounded-2xl shadow-xl p-6 sm:p-8 space-y-6">
         {/* Logo and Headings */}
         <div className="text-center space-y-1.5">
-          <div className="inline-flex items-center justify-center h-10 w-10 bg-slate-900 text-white rounded-xl text-lg font-bold">
-            🦷
-          </div>
-          <h1 className="text-lg font-bold text-slate-900 tracking-tight">Admin Portal</h1>
+          {clinicLogo ? (
+            <img src={clinicLogo} alt={clinicName} className="h-10 w-auto object-contain mx-auto mb-1" />
+          ) : (
+            <div className="inline-flex items-center justify-center h-10 w-10 bg-slate-900 text-white rounded-xl text-lg font-bold">
+              🦷
+            </div>
+          )}
+          <h1 className="text-lg font-bold text-slate-900 tracking-tight">
+            {clinicName ? `${clinicName} - Doctor Login` : "Doctor Login"}
+          </h1>
           <p className="text-slate-400 text-[11px] font-medium leading-none">
-            Sign in to manage patient appointments
+            Sign in with your email to manage patients
           </p>
         </div>
 
@@ -134,7 +205,7 @@ export default function LoginPage() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@example.com"
+                placeholder="doctor@example.com"
                 className="w-full bg-slate-50 border border-slate-100 hover:border-slate-200/80 focus:border-slate-900 rounded-xl pl-10 pr-3 py-2 text-xs text-slate-800 placeholder-slate-450 focus:outline-none transition-colors"
               />
             </div>
@@ -177,12 +248,14 @@ export default function LoginPage() {
         </form>
  
         {/* Link to register page */}
-        <div className="text-center text-[11px] text-slate-400">
-          Want to register a new clinic?{" "}
-          <Link href="/admin/register" className="font-semibold text-slate-800 hover:underline">
-            Register here
-          </Link>
-        </div>
+        {clinicSlug === "default" && (
+          <div className="text-center text-[11px] text-slate-400">
+            Want to register a new clinic?{" "}
+            <Link href="/admin/register" className="font-semibold text-slate-800 hover:underline">
+              Register here
+            </Link>
+          </div>
+        )}
       </div>
     </div>
   );

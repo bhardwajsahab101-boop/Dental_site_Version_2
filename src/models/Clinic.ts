@@ -8,6 +8,8 @@ export interface IClinic extends Document {
   address: string;
   logo?: string;
   gstNumber?: string;
+  status: "active" | "suspended" | "trial";
+  trialEndsAt: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -52,6 +54,17 @@ const clinicSchema = new Schema<IClinic>(
       type: String,
       default: "",
       trim: true,
+    },
+    status: {
+      type: String,
+      enum: ["active", "suspended", "trial"],
+      default: "trial",
+      required: true,
+    },
+    trialEndsAt: {
+      type: Date,
+      default: () => new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days trial
+      required: true,
     },
   },
   {

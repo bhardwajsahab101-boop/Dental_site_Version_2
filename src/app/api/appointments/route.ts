@@ -6,6 +6,7 @@ import { Counter } from "../../../models/Counter";
 import { getCurrentClinic } from "../../../lib/auth";
 import { Clinic } from "../../../models/Clinic";
 import { logActivity } from "../../../lib/audit";
+import { getSubdomainSlug, isRootHost } from "../../../lib/subdomain";
  
 export const dynamic = "force-dynamic";
  
@@ -95,17 +96,23 @@ export async function POST(req: Request) {
     
     if (!resolvedClinicId) {
       const host = req.headers.get("host") || "";
-      let slug = "default";
-      const parts = host.split(".");
-      if (parts.length > 2 || (host.includes("localhost") && parts.length > 1)) {
-        if (parts[0] !== "www") {
-          slug = parts[0].split(":")[0];
-        }
+      const isRoot = isRootHost(host);
+      const slug = isRoot ? "default" : getSubdomainSlug(host);
+      
+      let clinicFromHost = null;
+      if (!isRoot) {
+        clinicFromHost = await Clinic.findOne({ slug: slug.toLowerCase() });
       }
-      const clinicFromHost = await Clinic.findOne({ slug: slug.toLowerCase() });
+      
       if (clinicFromHost) {
         resolvedClinicId = String(clinicFromHost._id);
       }
+      
+      const clinicMatch = clinicFromHost ? `${clinicFromHost.name} (${clinicFromHost._id})` : "None";
+      console.log(`Host: ${host}`);
+      console.log(`Detected Slug: ${slug}`);
+      console.log(`Is Root Domain: ${isRoot}`);
+      console.log(`Clinic Match: ${clinicMatch}`);
     }
 
     if (!resolvedClinicId) {

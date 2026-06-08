@@ -28,7 +28,23 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function Home() {
   const clinic = await getClinic();
-
+ 
+  if (!clinic) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-full max-w-sm bg-white rounded-2xl border border-slate-100 shadow-xl p-8 space-y-6">
+          <div className="inline-flex items-center justify-center h-12 w-12 bg-rose-50 text-rose-500 rounded-xl text-xl font-bold">
+            🦷
+          </div>
+          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Clinic Not Found</h1>
+          <p className="text-slate-400 text-xs font-semibold">
+            The requested clinic is invalid or does not exist. Please check the domain slug and try again.
+          </p>
+        </div>
+      </div>
+    );
+  }
+ 
   return (
     <div>
       <Navbar clinic={clinic} />

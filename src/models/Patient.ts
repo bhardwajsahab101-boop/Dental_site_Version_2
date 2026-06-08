@@ -11,7 +11,7 @@ export interface IPatientDocument {
 }
 
 export interface IPatient extends Document {
-    clinicId?: mongoose.Types.ObjectId;
+    clinicId: mongoose.Types.ObjectId;
     fullName: string;
     patientCode: string;
 
@@ -26,6 +26,8 @@ export interface IPatient extends Document {
     documents?: IPatientDocument[];
     deletedAt?: Date | null;
     deletedBy?: mongoose.Types.ObjectId | null;
+    createdBy?: mongoose.Types.ObjectId | null;
+    updatedBy?: mongoose.Types.ObjectId | null;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -35,7 +37,7 @@ const patientSchema = new Schema<IPatient>(
         clinicId: {
             type: Schema.Types.ObjectId,
             ref: "Clinic",
-            required: false,
+            required: true,
             index: true,
         },
         fullName: {
@@ -100,11 +102,28 @@ const patientSchema = new Schema<IPatient>(
             ref: "User",
             default: null,
         },
+        createdBy: {
+            type: Schema.Types.ObjectId,
+            ref: "User",
+            default: null,
+        },
+        updatedBy: {
+            type: Schema.Types.ObjectId,
+            ref: "User",
+            default: null,
+        },
     },
     {
         timestamps: true,
     }
 );
+
+// Pre-save hook to prevent orphaned documents and cross-tenant access leaks
+patientSchema.pre("save", function () {
+    if (!this.clinicId) {
+        throw new Error("clinicId is required for Patient");
+    }
+});
 
 // Compound unique index for multi-tenant patient code uniqueness
 patientSchema.index({ clinicId: 1, patientCode: 1 }, { unique: true });

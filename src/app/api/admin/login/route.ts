@@ -3,6 +3,7 @@ import { signJWT, hashPassword } from "../../../../lib/auth";
 import { connectDB } from "../../../../lib/mongodb";
 import { User } from "../../../../models/User";
 import { Clinic } from "../../../../models/Clinic";
+import { isRootHost } from "../../../../lib/subdomain";
  
 export async function POST(req: Request) {
   try {
@@ -69,14 +70,41 @@ export async function POST(req: Request) {
     }
  
     // Resolve clinic slug for subdomain matching
-    let clinicSlug = undefined;
+    let clinicSlug = "default";
+    let clinicStatus = "active";
+    let clinicTrialEndsAt = null;
     if (user.clinicId) {
       const clinic = await Clinic.findById(user.clinicId);
       if (clinic) {
-        clinicSlug = clinic.slug;
+        clinicSlug = clinic.slug || "default";
+        clinicStatus = clinic.status || "active";
+        clinicTrialEndsAt = clinic.trialEndsAt;
       }
     }
 
+    if (user.role !== "admin") {
+      // Check clinic status/trial expiration
+      if (clinicStatus === "suspended") {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Your clinic subscription has been suspended. Please contact support.",
+          },
+          { status: 403 }
+        );
+      }
+
+      if (clinicStatus === "trial" && clinicTrialEndsAt && new Date(clinicTrialEndsAt).getTime() < Date.now()) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: "Your clinic's trial period has expired. Please upgrade to continue.",
+          },
+          { status: 403 }
+        );
+      }
+    }
+ 
     // Generate JWT token (expires in 24 hours) containing clinicId, userId, role, and clinicSlug
     const token = await signJWT(
       {
@@ -93,6 +121,7 @@ export async function POST(req: Request) {
     const response = NextResponse.json({
       success: true,
       message: "Logged in successfully",
+      token, // Include the token for cross-subdomain handoff
       user: {
         name: user.name,
         email: user.email,
@@ -100,13 +129,28 @@ export async function POST(req: Request) {
         clinicSlug,
       },
     });
+
+    // Resolve cookie domain for subdomain sharing
+    const hostHeader = req.headers.get("host") || "";
+    const hostname = hostHeader.split(":")[0].toLowerCase();
+    let cookieDomain = undefined;
+
+    if (hostname.endsWith(".lvh.me")) {
+      cookieDomain = ".lvh.me";
+    } else if (!isRootHost(hostname)) {
+      const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "launchstack.in";
+      if (hostname.endsWith("." + rootDomain)) {
+        cookieDomain = `.${rootDomain}`;
+      }
+    }
  
-    // Set HTTP-only secure cookie
+    // Set HTTP-only secure cookie on the resolved wildcard domain
     response.cookies.set("admin_token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
+      domain: cookieDomain,
       maxAge: 86400, // 1 day
     });
  

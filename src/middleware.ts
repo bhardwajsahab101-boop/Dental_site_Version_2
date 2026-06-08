@@ -2,78 +2,96 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { verifyJWT } from "./lib/auth";
 import { hasPageAccess, hasApiAccess } from "./lib/permissions";
-
-export async function proxy(request: NextRequest) {
+import { getSubdomainSlug, isRootHost } from "./lib/subdomain";
+ 
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-
+  const host = request.headers.get("host") || "";
+  const currentSlug = getSubdomainSlug(host);
+ 
+  console.log(`[Middleware Request] Host: ${host} | Extracted Slug: ${currentSlug} | Pathname: ${pathname}`);
+ 
   // 1. Exclude public static/assets
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon.ico") ||
     pathname.endsWith(".png") ||
-    pathname.endsWith(".jpg")
+    pathname.endsWith(".jpg") ||
+    pathname.endsWith(".ico") ||
+    pathname.endsWith(".svg")
   ) {
     return NextResponse.next();
   }
-
+ 
+  // Store clinic slug context in the request headers
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-clinic-slug", currentSlug);
+ 
   // Allow public access to login page
   if (pathname === "/admin/login" || pathname === "/admin/login/") {
-    // If already logged in, redirect to dashboard or register depending on role
-    const token = request.cookies.get("admin_token")?.value;
-    if (token) {
-      const secret = process.env.JWT_SECRET || "default_secret";
-      const verified = await verifyJWT(token, secret);
-      if (verified && verified.role) {
-        if (verified.role === "admin") {
-          return NextResponse.redirect(new URL("/admin/register", request.url));
-        }
-        return NextResponse.redirect(new URL("/admin", request.url));
-      }
-    }
-    return NextResponse.next();
+    return NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
   }
-
+ 
   // 2. Protect Admin UI Routes (/admin/*)
   if (pathname.startsWith("/admin")) {
     const token = request.cookies.get("admin_token")?.value;
     if (!token) {
-      // Redirect to login page
+      // Redirect to login page on the current subdomain
       return NextResponse.redirect(new URL("/admin/login", request.url));
     }
-
+ 
     const secret = process.env.JWT_SECRET || "default_secret";
     const verified = await verifyJWT(token, secret);
     if (!verified || !verified.role) {
       // Clear invalid cookie and redirect to login
       const response = NextResponse.redirect(new URL("/admin/login", request.url));
-      response.cookies.delete("admin_token");
-      return response;
-    }
-
-    // Enforce subdomain tenant separation
-    if (verified.role !== "admin" && verified.clinicSlug) {
+      
       const host = request.headers.get("host") || "";
-      const parts = host.split(".");
-      let hostSlug = "default";
-      if (parts.length > 2 || (host.includes("localhost") && parts.length > 1)) {
-        if (parts[0] !== "www") {
-          hostSlug = parts[0].split(":")[0].toLowerCase();
+      const hostname = host.split(":")[0].toLowerCase();
+      let cookieDomain = undefined;
+ 
+      if (hostname.endsWith(".lvh.me")) {
+        cookieDomain = ".lvh.me";
+      } else if (!isRootHost(hostname)) {
+        const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "launchstack.in";
+        if (hostname.endsWith("." + rootDomain)) {
+          cookieDomain = `.${rootDomain}`;
         }
       }
+ 
+      response.cookies.set("admin_token", "", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        domain: cookieDomain,
+        maxAge: 0,
+      });
+ 
+      return response;
+    }
+ 
+    // Enforce subdomain tenant separation
+    if (verified.role !== "admin") {
+      const userSlug = verified.clinicSlug || "default";
       
-      let isMatch = verified.clinicSlug === hostSlug;
-      if (hostSlug === "default") {
-        isMatch = true;
-      }
-
-      if (!isMatch) {
-        console.warn(`Blocked cross-tenant access to page: user clinic '${verified.clinicSlug}' tried to access '${hostSlug}'`);
-        const response = NextResponse.redirect(new URL("/admin/login", request.url));
-        response.cookies.delete("admin_token");
-        return response;
+      // Strict matching: clinic user must be on their specific subdomain
+      // Disable tenant redirect logic if running on a Vercel deployment URL
+      const isVercel = host.split(":")[0].toLowerCase().endsWith(".vercel.app") || host.split(":")[0].toLowerCase() === "vercel.app";
+      if (!isVercel && (currentSlug === "default" || currentSlug !== userSlug)) {
+        console.warn(`Blocked cross-tenant access to page: user clinic '${userSlug}' tried to access subdomain '${currentSlug}'`);
+        // Redirect them to their own correct subdomain admin page
+        const protocol = request.nextUrl.protocol;
+        const rootDomain = host.includes("localhost") ? "lvh.me:3000" : host.split(".").slice(-2).join(".");
+        const targetUrl = `${protocol}//${userSlug}.${rootDomain}/admin`;
+        return NextResponse.redirect(new URL(targetUrl));
       }
     }
-
+ 
     // Check RBAC permission for page access
     if (!hasPageAccess(verified.role, pathname)) {
       // Redirect based on role
@@ -83,10 +101,8 @@ export async function proxy(request: NextRequest) {
         return NextResponse.redirect(new URL("/admin", request.url));
       }
     }
-
-    return NextResponse.next();
   }
-
+ 
   // 3. Protect API Routes
   const isProtectedApi =
     pathname.startsWith("/api/admin/settings") ||
@@ -100,7 +116,7 @@ export async function proxy(request: NextRequest) {
     pathname.startsWith("/api/treatments") ||
     pathname.startsWith("/api/messages") ||
     (pathname.startsWith("/api/appointments") && request.method !== "POST");
-
+ 
   if (isProtectedApi) {
     const token = request.cookies.get("admin_token")?.value;
     if (!token) {
@@ -109,7 +125,7 @@ export async function proxy(request: NextRequest) {
         { status: 401 }
       );
     }
-
+ 
     const secret = process.env.JWT_SECRET || "default_secret";
     const verified = await verifyJWT(token, secret);
     if (!verified || !verified.role) {
@@ -118,34 +134,19 @@ export async function proxy(request: NextRequest) {
         { status: 401 }
       );
     }
-
+ 
     // Enforce subdomain tenant separation on APIs
-    if (verified.role !== "admin" && verified.clinicSlug) {
-      const host = request.headers.get("host") || "";
-      const parts = host.split(".");
-      let hostSlug = "default";
-      if (parts.length > 2 || (host.includes("localhost") && parts.length > 1)) {
-        if (parts[0] !== "www") {
-          hostSlug = parts[0].split(":")[0].toLowerCase();
-        }
-      }
-
-      let isMatch = verified.clinicSlug === hostSlug;
-      if (hostSlug === "default") {
-        isMatch = true;
-      }
-
-      if (!isMatch) {
-        console.warn(`Blocked cross-tenant access to API: user clinic '${verified.clinicSlug}' tried to access '${hostSlug}'`);
-        const response = NextResponse.json(
+    if (verified.role !== "admin") {
+      const userSlug = verified.clinicSlug || "default";
+      if (currentSlug === "default" || currentSlug !== userSlug) {
+        console.warn(`Blocked cross-tenant access to API: user clinic '${userSlug}' tried to access subdomain '${currentSlug}'`);
+        return NextResponse.json(
           { success: false, message: "Forbidden: cross-tenant access is blocked" },
           { status: 403 }
         );
-        response.cookies.delete("admin_token");
-        return response;
       }
     }
-
+ 
     // Check RBAC permission for API access
     if (!hasApiAccess(verified.role, pathname, request.method)) {
       return NextResponse.json(
@@ -154,19 +155,17 @@ export async function proxy(request: NextRequest) {
       );
     }
   }
-
-  return NextResponse.next();
+ 
+  return NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
 }
-
+ 
 // Config to specify Matching paths for proxy execution
 export const config = {
   matcher: [
-    "/admin/:path*",
-    "/api/admin/:path*",
-    "/api/patients/:path*",
-    "/api/treatment/:path*",
-    "/api/treatments/:path*",
-    "/api/messages/:path*",
-    "/api/appointments/:path*",
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.png|.*\\.jpg|.*\\.svg).*)",
   ],
 };

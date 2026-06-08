@@ -2,6 +2,7 @@
 
 import React, { use, useEffect, useState, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import {
   ArrowLeft,
@@ -40,7 +41,6 @@ type Patient = {
   address?: string;
   medicalNotes?: string;
   allergies?: string;
-  documents?: any[];
 };
 
 type Appointment = {
@@ -97,7 +97,20 @@ type Props = {
 };
 
 export default function PatientProfilePage({ params }: Props) {
+  const router = useRouter();
   const [id, setId] = useState<string | null>(null);
+
+  // Edit Patient Details States
+  const [showEditPatientModal, setShowEditPatientModal] = useState(false);
+  const [editFullName, setEditFullName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editAge, setEditAge] = useState("");
+  const [editGender, setEditGender] = useState("");
+  const [editAddress, setEditAddress] = useState("");
+  const [editMedicalNotes, setEditMedicalNotes] = useState("");
+  const [editAllergies, setEditAllergies] = useState("");
+  const [updatingPatient, setUpdatingPatient] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -162,11 +175,7 @@ export default function PatientProfilePage({ params }: Props) {
   // Invoice States
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
 
-  // Document Upload States
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [uploadingDoc, setUploadingDoc] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [docCategory, setDocCategory] = useState<string>("X-Rays");
+  // Document Upload States removed
   const [selectedInvoices, setSelectedInvoices] = useState<string[]>([]);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [clinicSettings, setClinicSettings] = useState<any>(null);
@@ -397,6 +406,80 @@ export default function PatientProfilePage({ params }: Props) {
     }
   };
 
+  const handleDeletePatient = async () => {
+    if (!patient) return;
+    if (
+      !window.confirm(
+        `Are you sure you want to delete patient "${patient.fullName}"? This action cannot be undone.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/patients/${patient._id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Failed to delete patient");
+      }
+      toast.success("Patient deleted successfully!");
+      router.push("/admin/patients");
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Failed to delete patient");
+    }
+  };
+
+  const handleUpdatePatient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!patient) return;
+
+    const fullName = editFullName.trim();
+    if (fullName.length < 3) {
+      toast.error("Full Name must be at least 3 characters.");
+      return;
+    }
+
+    const digitsOnly = editPhone.trim().replace(/\D/g, "");
+
+
+    setUpdatingPatient(true);
+    try {
+      const res = await fetch(`/api/patients/${patient._id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          fullName,
+          phone: digitsOnly,
+          email: editEmail.trim() || undefined,
+          age: editAge ? Number(editAge) : undefined,
+          gender: editGender || undefined,
+          address: editAddress.trim() || undefined,
+          medicalNotes: editMedicalNotes.trim() || undefined,
+          allergies: editAllergies.trim() || undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Failed to update patient");
+      }
+
+      toast.success("Patient details updated successfully!");
+      setShowEditPatientModal(false);
+      await load();
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Failed to update patient");
+    } finally {
+      setUpdatingPatient(false);
+    }
+  };
+
   const handleDeleteTreatment = async (treatmentId: string) => {
     if (!window.confirm("Are you sure you want to delete this treatment?")) return;
     try {
@@ -415,62 +498,7 @@ export default function PatientProfilePage({ params }: Props) {
     }
   };
 
-  const handleUploadDocument = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedFile) {
-      toast.error("Please select a file to upload");
-      return;
-    }
 
-    setUploadingDoc(true);
-    try {
-      const formData = new FormData();
-      formData.append("file", selectedFile);
-      formData.append("category", docCategory);
-
-      const res = await fetch(`/api/patients/${id}/documents`, {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Failed to upload document");
-      }
-
-      toast.success("Document uploaded successfully!");
-      setShowUploadModal(false);
-      setSelectedFile(null);
-      setDocCategory("X-Rays");
-      await load();
-    } catch (err: any) {
-      console.error(err);
-      toast.error(err.message || "Failed to upload document");
-    } finally {
-      setUploadingDoc(false);
-    }
-  };
-
-  const handleDeleteDocument = async (docId: string) => {
-    if (!window.confirm("Are you sure you want to delete this document?")) return;
-
-    try {
-      const res = await fetch(`/api/patients/${id}/documents?documentId=${docId}`, {
-        method: "DELETE",
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || "Failed to delete document");
-      }
-
-      toast.success("Document deleted successfully");
-      await load();
-    } catch (err: any) {
-      console.error(err);
-      toast.error(err.message || "Failed to delete document");
-    }
-  };
 
 
   // Build unified chronological timeline items
@@ -478,7 +506,7 @@ export default function PatientProfilePage({ params }: Props) {
     const items: Array<{
       id: string;
       date: Date;
-      type: "appointment" | "treatment" | "document" | "activity";
+      type: "appointment" | "treatment" | "activity";
       title: string;
       details: string;
       status?: string;
@@ -513,19 +541,7 @@ export default function PatientProfilePage({ params }: Props) {
       });
     });
 
-    // Add Documents (if any uploaded under patient)
-    const patientDocs = (patient as any)?.documents || [];
-    patientDocs.forEach((doc: any) => {
-      const d = new Date(doc.uploadedAt);
-      items.push({
-        id: `doc-${doc._id || doc.url}`,
-        date: isNaN(d.getTime()) ? new Date() : d,
-        type: "document",
-        title: `Uploaded Receipt: ${doc.name}`,
-        details: `Category: ${doc.category}. Uploaded by: ${doc.uploadedBy || "Clinic Staff"}`,
-        meta: doc,
-      });
-    });
+
 
     // Add Notes / Status changes from Audit Logs
     auditLogs.forEach((log) => {
@@ -600,7 +616,7 @@ export default function PatientProfilePage({ params }: Props) {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Quick Call Action */}
+          
           <a
             href={`tel:${patient.phone}`}
             title="Call Patient"
@@ -1003,98 +1019,6 @@ export default function PatientProfilePage({ params }: Props) {
             )}
           </section>
 
-          {/* Patient Documents Section */}
-          <section className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-50 pb-3">
-              <div className="flex items-center gap-2">
-                <span className="text-sm">📁</span>
-                <h2 className="text-base font-semibold text-slate-800">Patient Documents</h2>
-              </div>
-              <button
-                onClick={() => {
-                  setSelectedFile(null);
-                  setDocCategory("X-Rays");
-                  setShowUploadModal(true);
-                }}
-                type="button"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-sm transition-all hover:shadow cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Upload Document
-              </button>
-            </div>
-
-            {!patient.documents || patient.documents.length === 0 ? (
-              <div className="bg-slate-50/50 border border-dashed border-slate-200 rounded-xl p-8 text-center text-sm text-slate-505">
-                No documents uploaded yet. Upload X-Rays, Reports, or Prescriptions.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {patient.documents.map((doc: any) => {
-                  let catColor = "bg-slate-100 text-slate-700 border-slate-200";
-                  if (doc.category === "X-Rays") catColor = "bg-blue-50 text-blue-700 border-blue-100";
-                  else if (doc.category === "Reports") catColor = "bg-emerald-50 text-emerald-700 border-emerald-100";
-                  else if (doc.category === "Prescriptions") catColor = "bg-purple-50 text-purple-700 border-purple-100";
-                  else if (doc.category === "Photos") catColor = "bg-pink-50 text-pink-700 border-pink-100";
-
-                  const d = new Date(doc.uploadedAt);
-                  const dateLabel = isNaN(d.getTime())
-                    ? "Unknown Date"
-                    : d.toLocaleDateString("en-US", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      });
-
-                  return (
-                    <div
-                      key={doc._id}
-                      className="bg-slate-50/40 hover:bg-slate-50 border border-slate-105 hover:border-slate-200/80 rounded-xl p-3 flex flex-col justify-between space-y-3 relative group transition-all"
-                    >
-                      <div className="min-w-0 space-y-1 bg-transparent">
-                        <div className="flex items-start justify-between gap-2">
-                          <h4 className="text-xs font-bold text-slate-805 truncate pr-6" title={doc.name}>
-                            {doc.name}
-                          </h4>
-                          <button
-                            onClick={() => handleDeleteDocument(doc._id)}
-                            type="button"
-                            className="absolute top-3 right-3 p-1 hover:bg-rose-50 rounded-full text-slate-400 hover:text-rose-600 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
-                            title="Delete file"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className={`inline-flex items-center px-1.5 py-0.25 text-[8.5px] font-bold uppercase rounded border ${catColor}`}>
-                            {doc.category}
-                          </span>
-                          <span className="text-[9px] text-slate-400 font-semibold">
-                            Uploaded: {dateLabel}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-100/40">
-                        <span className="text-[8.5px] text-slate-450 truncate max-w-[120px]" title={`By ${doc.uploadedBy}`}>
-                          By: {doc.uploadedBy}
-                        </span>
-                        <a
-                          href={doc.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-[9.5px] font-extrabold text-indigo-650 hover:text-indigo-850 hover:underline"
-                        >
-                          <span>🔗 View Attachment</span>
-                        </a>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-
           {/* Step 5: Patient Timeline */}
           <section className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm space-y-6">
             <div className="flex items-center justify-between border-b border-slate-50 pb-3">
@@ -1139,11 +1063,6 @@ export default function PatientProfilePage({ params }: Props) {
                     typeColor = "bg-emerald-50 text-emerald-700 border-emerald-100";
                     dotColor = "bg-emerald-500 ring-emerald-100";
                     cardBorder = "border-emerald-100/40 hover:border-emerald-200";
-                  } else if (item.type === "document") {
-                    icon = "📄";
-                    typeColor = "bg-indigo-50 text-indigo-700 border-indigo-100";
-                    dotColor = "bg-indigo-500 ring-indigo-100";
-                    cardBorder = "border-indigo-100/40 hover:border-indigo-200";
                   } else if (item.type === "activity") {
                     icon = "⚡";
                     typeColor = "bg-amber-50 text-amber-700 border-amber-100";
@@ -1257,6 +1176,36 @@ export default function PatientProfilePage({ params }: Props) {
                 <span className="text-sm font-semibold text-slate-800 block mt-0.5">
                   {patient.age ? `${patient.age} years old` : "—"}
                 </span>
+              </div>
+
+              {/* Action Buttons: Edit and Delete */}
+              <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 mt-4">
+                <button
+                  onClick={() => {
+                    setEditFullName(patient.fullName || "");
+                    setEditPhone(patient.phone || "");
+                    setEditEmail(patient.email || "");
+                    setEditAge(patient.age ? String(patient.age) : "");
+                    setEditGender(patient.gender || "");
+                    setEditAddress(patient.address || "");
+                    setEditMedicalNotes(patient.medicalNotes || "");
+                    setEditAllergies(patient.allergies || "");
+                    setShowEditPatientModal(true);
+                  }}
+                  type="button"
+                  className="w-full sm:flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200/80 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  Edit Details
+                </button>
+                <button
+                  onClick={handleDeletePatient}
+                  type="button"
+                  className="w-full sm:flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 border border-rose-205 text-rose-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete Patient
+                </button>
               </div>
             </div>
           </section>
@@ -1713,95 +1662,162 @@ export default function PatientProfilePage({ params }: Props) {
         </div>
       )}
 
-      {/* Document Upload Modal Overlay */}
-      {showUploadModal && (
+
+
+      {/* Edit Patient Details Modal Overlay */}
+      {showEditPatientModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-white border border-slate-100 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+          <div className="bg-white border border-slate-100 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200 overflow-y-auto max-h-[90vh]">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
-                <h3 className="text-sm font-bold text-slate-800">Upload Patient Document</h3>
-                <p className="text-[10px] text-slate-400 mt-0.5">Attach medical files, reports, or photos for {patient.fullName}</p>
+                <h3 className="text-sm font-bold text-slate-800">Edit Patient Details</h3>
+                <p className="text-[10px] text-slate-400 mt-0.5">Update records for {patient.fullName}</p>
               </div>
               <button
-                onClick={() => setShowUploadModal(false)}
-                className="text-slate-400 hover:text-slate-655 transition-colors"
+                onClick={() => setShowEditPatientModal(false)}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
                 type="button"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleUploadDocument} className="space-y-4">
-              <div className="space-y-1">
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  Document Category
-                </label>
-                <select
-                  value={docCategory}
-                  onChange={(e) => setDocCategory(e.target.value)}
-                  required
-                  className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700"
-                >
-                  <option value="X-Rays">X-Rays</option>
-                  <option value="Reports">Reports</option>
-                  <option value="Prescriptions">Prescriptions</option>
-                  <option value="Photos">Photos</option>
-                  <option value="Other">Other</option>
-                </select>
+            <form onSubmit={handleUpdatePatient} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Full Name <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    value={editFullName}
+                    onChange={(e) => setEditFullName(e.target.value)}
+                    required
+                    placeholder="Full Name"
+                    className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Phone Number <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(e.target.value)}
+                    required
+                    placeholder="10-digit mobile"
+                    className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700"
+                  />
+                </div>
               </div>
 
-              <div className="space-y-1.5">
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  Select File
-                </label>
-                <div className="border-2 border-dashed border-slate-200 hover:border-indigo-300 rounded-xl p-4 transition-colors text-center relative">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-1 sm:col-span-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Gender
+                  </label>
+                  <select
+                    value={editGender}
+                    onChange={(e) => setEditGender(e.target.value)}
+                    className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700"
+                  >
+                    <option value="">Select Gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1 sm:col-span-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Age
+                  </label>
                   <input
-                    type="file"
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files.length > 0) {
-                        setSelectedFile(e.target.files[0]);
-                      }
-                    }}
-                    required
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    type="number"
+                    value={editAge}
+                    onChange={(e) => setEditAge(e.target.value)}
+                    placeholder="Age"
+                    className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700"
                   />
-                  <div className="text-xs text-slate-505 space-y-1">
-                    <p className="font-bold text-indigo-650">Click to upload or drag & drop</p>
-                    <p className="text-[10px] text-slate-400">PDF, PNG, JPG up to 10MB</p>
-                    {selectedFile && (
-                      <p className="text-[10px] font-semibold text-slate-700 bg-slate-100 px-2 py-1 rounded inline-block mt-2">
-                        📎 Selected: {selectedFile.name}
-                      </p>
-                    )}
-                  </div>
+                </div>
+
+                <div className="space-y-1 sm:col-span-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    placeholder="email@example.com"
+                    className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Residential Address
+                </label>
+                <textarea
+                  placeholder="Address..."
+                  value={editAddress}
+                  onChange={(e) => setEditAddress(e.target.value)}
+                  className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-805 resize-none"
+                  rows={2}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Medical Notes
+                  </label>
+                  <textarea
+                    placeholder="Conditions, medicines, etc..."
+                    value={editMedicalNotes}
+                    onChange={(e) => setEditMedicalNotes(e.target.value)}
+                    className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-800 resize-none"
+                    rows={2}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Allergies
+                  </label>
+                  <textarea
+                    placeholder="Known allergies..."
+                    value={editAllergies}
+                    onChange={(e) => setEditAllergies(e.target.value)}
+                    className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-800 resize-none"
+                    rows={2}
+                  />
                 </div>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowUploadModal(false);
-                    setSelectedFile(null);
-                  }}
-                  className="px-4 py-2 bg-slate-150 hover:bg-slate-200/85 text-slate-700 rounded-xl text-xs font-semibold transition-all"
+                  onClick={() => setShowEditPatientModal(false)}
+                  className="px-4 py-2 bg-slate-150 hover:bg-slate-200/80 text-slate-700 rounded-xl text-xs font-semibold transition-all"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={uploadingDoc}
+                  disabled={updatingPatient}
                   className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-75 disabled:cursor-not-allowed text-white rounded-xl text-xs font-semibold shadow-sm hover:shadow transition-all flex items-center gap-1.5"
                 >
-                  {uploadingDoc ? (
+                  {updatingPatient ? (
                     <>
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      Uploading...
+                      Saving...
                     </>
                   ) : (
                     <>
                       <Check className="w-3.5 h-3.5" />
-                      Upload File
+                      Save Changes
                     </>
                   )}
                 </button>

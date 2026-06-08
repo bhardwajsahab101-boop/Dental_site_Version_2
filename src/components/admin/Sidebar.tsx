@@ -87,7 +87,24 @@ export default function Sidebar() {
       const data = await res.json();
       if (res.ok && data.success) {
         toast.success("Logged out successfully");
-        window.location.href = "/admin/login";
+        
+        // Dynamically resolve central root domain for redirection
+        const currentHost = window.location.host;
+        const protocol = window.location.protocol;
+        
+        if (currentHost.includes("lvh.me")) {
+          const port = currentHost.split(":")[1] || "3000";
+          window.location.href = `${protocol}//localhost:${port}/admin/login`;
+        } else if (currentHost.includes("launchstack.in")) {
+          const parts = currentHost.split(".");
+          let mainDomain = "launchstack.in";
+          if (parts.length > 2) {
+            mainDomain = parts.slice(parts.length - 2).join(".");
+          }
+          window.location.href = `${protocol}//${mainDomain}/admin/login`;
+        } else {
+          window.location.href = "/admin/login";
+        }
       } else {
         throw new Error(data.message || "Failed to log out");
       }
