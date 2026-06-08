@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import { Eye, EyeOff, Loader2, Lock, Mail, Building, Phone, MapPin, User } from "lucide-react";
+import { isRootHost } from "../../../lib/subdomain";
  
 export default function RegisterPage() {
   // Clinic Fields
@@ -94,7 +95,7 @@ export default function RegisterPage() {
   if (registeredSlug) {
     const localUrl = `${window.location.protocol}//${registeredSlug}.lvh.me:${window.location.port || "3000"}/admin/login`;
     const currentHost = window.location.host;
-    const isVercel = currentHost.split(":")[0].toLowerCase().endsWith(".vercel.app") || currentHost.split(":")[0].toLowerCase() === "vercel.app";
+    const isRoot = isRootHost(currentHost);
     
     const hostParts = currentHost.split(".");
     let prodDomain = "launchstack.in";
@@ -105,7 +106,7 @@ export default function RegisterPage() {
     }
     
     let prodUrl = `${window.location.protocol}//${registeredSlug}.${prodDomain}/admin/login`;
-    if (isVercel) {
+    if (isRoot) {
       prodUrl = `${window.location.protocol}//${currentHost}/admin/login`;
     }
 

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import { Eye, EyeOff, Loader2, Lock, Mail } from "lucide-react";
+import { getSubdomainSlug, isRootHost } from "../../../lib/subdomain";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -98,17 +99,18 @@ export default function LoginPage() {
       const token = data.token;
       if (user && user.role !== "admin" && user.clinicSlug) {
         const currentHost = window.location.host;
-        const parts = currentHost.split(".");
-        let currentSlug = "default";
-        if (parts.length > 2 || (currentHost.includes("localhost") && parts.length > 1)) {
-          if (parts[0] !== "www") {
-            currentSlug = parts[0].split(":")[0].toLowerCase();
-          }
-        }
+        const currentSlug = getSubdomainSlug(currentHost);
+        const isRoot = isRootHost(currentHost);
         
-        const isVercel = currentHost.split(":")[0].toLowerCase().endsWith(".vercel.app") || currentHost.split(":")[0].toLowerCase() === "vercel.app";
-        // If we logged in to a subdomain that is different from our clinic slug (and not on Vercel deployment)
-        if (!isVercel && user.clinicSlug !== currentSlug) {
+        console.log({
+          currentHost,
+          currentSlug,
+          isRoot,
+          clinicSlug: user.clinicSlug
+        });
+        
+        // If we logged in to a subdomain that is different from our clinic slug (and not on root/Vercel host)
+        if (!isRoot && user.clinicSlug !== currentSlug) {
           // For local development on localhost, 127.0.0.1, or lvh.me, redirect to the wildcard lvh.me loopback domain so subdomains work out of the box
           if (
             currentHost.startsWith("localhost") ||
@@ -126,6 +128,7 @@ export default function LoginPage() {
             return;
           }
 
+          const parts = currentHost.split(":")[0].toLowerCase().split(".");
           let mainDomain = currentHost;
           if (currentSlug !== "default") {
             mainDomain = parts.slice(1).join(".");
