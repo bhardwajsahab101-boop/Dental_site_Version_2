@@ -10,6 +10,45 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const clinicId = await getCurrentClinic();
+
+    // Log the user context for authorization tracing
+    let userId = undefined;
+    let role = undefined;
+    let clinicSlug = undefined;
+    let currentHost = "";
+    let detectedSlug = "default";
+
+    try {
+      const { cookies, headers } = await import("next/headers");
+      const cookieStore = await cookies();
+      const token = cookieStore.get("admin_token")?.value;
+      if (token) {
+        const { verifyJWT } = await import("../../../../lib/auth");
+        const secret = process.env.JWT_SECRET || "default_secret";
+        const verified = await verifyJWT(token, secret);
+        if (verified) {
+          userId = verified.userId;
+          role = verified.role;
+          clinicSlug = verified.clinicSlug;
+        }
+      }
+      const headersList = await headers();
+      currentHost = headersList.get("host") || "";
+      const { getSubdomainSlug } = await import("../../../../lib/subdomain");
+      detectedSlug = getSubdomainSlug(currentHost);
+    } catch (err) {
+      console.error("Error gathering logs for dashboard route:", err);
+    }
+
+    console.log({
+      userId,
+      role,
+      clinicId,
+      clinicSlug,
+      currentHost,
+      detectedSlug
+    });
+
     if (!clinicId) {
       return NextResponse.json(
         { success: false, message: "Unauthorized access" },

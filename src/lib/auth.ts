@@ -166,6 +166,18 @@ export async function getCurrentUser(): Promise<UserSession | null> {
       console.log("getCurrentUser: No active clinic resolved.");
       return null;
     }
+
+    const headerStore = await headers();
+    const currentHost = headerStore.get("host") || "";
+
+    console.log({
+      userId: verified.userId,
+      role: verified.role,
+      clinicId: activeClinicId,
+      clinicSlug: verified.clinicSlug,
+      currentHost,
+      detectedSlug: activeClinicSlug
+    });
  
     console.log(`getCurrentUser: Verifying user ${verified.email} (Role: ${verified.role}) on clinic slug: '${activeClinicSlug}'`);
  

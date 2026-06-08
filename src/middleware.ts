@@ -79,6 +79,15 @@ export async function middleware(request: NextRequest) {
     if (verified.role !== "admin") {
       const userSlug = verified.clinicSlug || "default";
       
+      console.log({
+        userId: verified.userId,
+        role: verified.role,
+        clinicId: verified.clinicId,
+        clinicSlug: verified.clinicSlug,
+        currentHost: host,
+        detectedSlug: currentSlug
+      });
+      
       // Strict matching: clinic user must be on their specific subdomain
       // Disable tenant redirect logic if running on a Vercel deployment URL
       const isVercel = host.split(":")[0].toLowerCase().endsWith(".vercel.app") || host.split(":")[0].toLowerCase() === "vercel.app";
@@ -93,7 +102,9 @@ export async function middleware(request: NextRequest) {
     }
  
     // Check RBAC permission for page access
-    if (!hasPageAccess(verified.role, pathname)) {
+    const pageAccessGranted = hasPageAccess(verified.role, pathname);
+    console.log(`[Middleware Page RBAC Check] Path: ${pathname} | Role: ${verified.role} | Granted: ${pageAccessGranted}`);
+    if (!pageAccessGranted) {
       // Redirect based on role
       if (verified.role === "admin") {
         return NextResponse.redirect(new URL("/admin/register", request.url));
@@ -138,7 +149,18 @@ export async function middleware(request: NextRequest) {
     // Enforce subdomain tenant separation on APIs
     if (verified.role !== "admin") {
       const userSlug = verified.clinicSlug || "default";
-      if (currentSlug === "default" || currentSlug !== userSlug) {
+      
+      console.log({
+        userId: verified.userId,
+        role: verified.role,
+        clinicId: verified.clinicId,
+        clinicSlug: verified.clinicSlug,
+        currentHost: host,
+        detectedSlug: currentSlug
+      });
+
+      const isVercel = host.split(":")[0].toLowerCase().endsWith(".vercel.app") || host.split(":")[0].toLowerCase() === "vercel.app";
+      if (!isVercel && (currentSlug === "default" || currentSlug !== userSlug)) {
         console.warn(`Blocked cross-tenant access to API: user clinic '${userSlug}' tried to access subdomain '${currentSlug}'`);
         return NextResponse.json(
           { success: false, message: "Forbidden: cross-tenant access is blocked" },
@@ -148,7 +170,9 @@ export async function middleware(request: NextRequest) {
     }
  
     // Check RBAC permission for API access
-    if (!hasApiAccess(verified.role, pathname, request.method)) {
+    const apiAccessGranted = hasApiAccess(verified.role, pathname, request.method);
+    console.log(`[Middleware API RBAC Check] Path: ${pathname} [${request.method}] | Role: ${verified.role} | Granted: ${apiAccessGranted}`);
+    if (!apiAccessGranted) {
       return NextResponse.json(
         { success: false, message: "Forbidden: insufficient permissions for this operation" },
         { status: 403 }
