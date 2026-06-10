@@ -19,6 +19,12 @@ import {
 } from "lucide-react";
 import { hasPageAccess } from "../../lib/permissions";
 
+const ToothIcon = () => (
+  <svg className="h-5 w-5 text-violet-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 2C8.5 2 6 4.5 6 8.5C6 11.5 7.5 13 8 14C8.5 15 8.5 17 8.5 19C8.5 20.5 9.5 21.5 11 21.5C12 21.5 12 20.5 12 19.5C12 20.5 12 21.5 13 21.5C14.5 21.5 15.5 20.5 15.5 19C15.5 17 15.5 15 16 14C16.5 13 18 11.5 18 8.5C18 4.5 15.5 2 12 2Z" fill="currentColor" fillOpacity="0.25" />
+  </svg>
+);
+
 export default function Sidebar() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
@@ -75,9 +81,9 @@ export default function Sidebar() {
     const base =
       "flex items-center space-x-2.5 px-3 py-1.5 rounded-lg text-[13px] font-medium transition-all duration-150";
     if (isActive(href)) {
-      return `${base} bg-slate-900 text-white shadow-sm`;
+      return `${base} bg-[#5f22e6] text-white shadow-sm`;
     }
-    return `${base} text-slate-600 hover:text-slate-900 hover:bg-slate-50`;
+    return `${base} text-slate-605 hover:text-slate-900 hover:bg-slate-50`;
   };
 
   const handleLogout = async () => {
@@ -120,9 +126,9 @@ export default function Sidebar() {
       {/* Mobile Top Header */}
       <header className="md:hidden flex items-center justify-between px-4 h-12 bg-white border-b border-slate-100 sticky top-0 z-40 w-full shrink-0">
         <div className="flex items-center space-x-2">
-          <span className="text-xl">🦷</span>
+          <ToothIcon />
           <span className="text-[14px] font-semibold text-slate-900 tracking-tight">
-            Clinic Admin
+            LaunchStack Dental OS
           </span>
         </div>
         <button
@@ -144,9 +150,9 @@ export default function Sidebar() {
             <div className="flex-1 flex flex-col">
               <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center space-x-2">
-                  <span className="text-lg">🦷</span>
+                  <ToothIcon />
                   <span className="text-[14px] font-semibold text-slate-955 tracking-tight">
-                    Dental Clinic
+                    LaunchStack Dental OS
                   </span>
                 </div>
                 <button
@@ -226,10 +232,10 @@ export default function Sidebar() {
       <aside className="hidden md:flex w-56 shrink-0 flex-col justify-between border-r border-slate-100 bg-white p-4 h-screen sticky top-0">
         <div className="flex-1 flex flex-col">
           {/* Logo / Brand */}
-          <div className="flex items-center space-x-2 px-1 mb-8 mt-1">
-            <span className="text-xl">🦷</span>
-            <span className="text-[14px] font-bold text-slate-955 tracking-tight">
-              Clinic Portal
+          <div className="flex items-center space-x-2.5 px-1.5 mb-8 mt-1">
+            <ToothIcon />
+            <span className="text-[14px] font-bold text-slate-900 tracking-tight">
+              LaunchStack Dental OS
             </span>
           </div>
 
