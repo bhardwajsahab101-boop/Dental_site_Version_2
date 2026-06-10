@@ -63,6 +63,10 @@ async function seedDefaultClinicAndUser() {
         console.log("Self-healed clinic with status 'active' and slug 'default'");
       }
     }
+
+    // Seed default services for the clinic
+    const { seedDefaultServicesForClinic } = await import("../models/ClinicService");
+    await seedDefaultServicesForClinic(clinic._id);
  
     const userCount = await User.countDocuments();
     if (userCount === 0) {

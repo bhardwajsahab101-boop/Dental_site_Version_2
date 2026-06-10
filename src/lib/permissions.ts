@@ -54,6 +54,11 @@ export function hasPageAccess(role: string, pathname: string): boolean {
     return ["owner", "doctor", "receptionist", "admin"].includes(role);
   }
 
+  // Academy: Owner, Doctor, Receptionist, or Admin
+  if (normPath.startsWith("/admin/academy")) {
+    return ["owner", "doctor", "receptionist", "admin"].includes(role);
+  }
+
   // Dashboard homepage: Owner, Doctor, Receptionist, or Admin
   if (pathname === "/admin" || pathname === "/admin/") {
     return ["owner", "doctor", "receptionist", "admin"].includes(role);
@@ -80,6 +85,14 @@ export function hasApiAccess(role: string, pathname: string, method: string): bo
 
   // Settings APIs: Owner only
   if (normPath.startsWith("/api/admin/settings")) {
+    return ["owner"].includes(role);
+  }
+
+  // Services Management APIs: GET for owner, receptionist, doctor; POST/PATCH/DELETE for owner only
+  if (normPath.startsWith("/api/admin/services")) {
+    if (method === "GET") {
+      return ["owner", "receptionist", "doctor"].includes(role);
+    }
     return ["owner"].includes(role);
   }
 

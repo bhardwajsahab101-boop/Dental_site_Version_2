@@ -116,6 +116,7 @@ export async function middleware(request: NextRequest) {
  
   // 3. Protect API Routes
   const isProtectedApi =
+    pathname.startsWith("/api/admin/services") ||
     pathname.startsWith("/api/admin/settings") ||
     pathname.startsWith("/api/admin/analytics") ||
     pathname.startsWith("/api/admin/dashboard") ||

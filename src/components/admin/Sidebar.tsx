@@ -14,7 +14,8 @@ import {
   TrendingUp,
   Settings,
   Users,
-  Coins
+  Coins,
+  GraduationCap
 } from "lucide-react";
 import { hasPageAccess } from "../../lib/permissions";
 
@@ -140,7 +141,7 @@ export default function Sidebar() {
             onClick={() => setIsOpen(false)}
           />
           <div className="fixed top-0 bottom-0 left-0 w-64 max-w-[80vw] bg-white border-r border-slate-100 p-5 flex flex-col justify-between shadow-xl">
-            <div>
+            <div className="flex-1 flex flex-col">
               <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center space-x-2">
                   <span className="text-lg">🦷</span>
@@ -172,6 +173,29 @@ export default function Sidebar() {
                   );
                 })}
               </nav>
+
+              <div className="flex-1" />
+
+              {hasPageAccess(role, "/admin/academy") && (
+                <Link
+                  href="/admin/academy"
+                  onClick={() => setIsOpen(false)}
+                  className={`group relative flex flex-col items-start p-3 bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-950 text-white rounded-xl shadow-sm border border-slate-800 transition-all hover:scale-[1.02] cursor-pointer mb-4 ${
+                    isActive("/admin/academy") ? "ring-2 ring-indigo-500 ring-offset-2 ring-offset-white" : ""
+                  }`}
+                >
+                  <div className="flex items-center space-x-2">
+                    <GraduationCap className="h-4 w-4 text-indigo-400 shrink-0" />
+                    <span className="text-[11.5px] font-extrabold tracking-tight">Dental OS Academy</span>
+                  </div>
+                  <p className="text-[9px] text-slate-400 mt-1 font-semibold leading-normal">
+                    Self-guided training & interactive guides.
+                  </p>
+                  <span className="absolute right-2.5 bottom-2.5 opacity-0 group-hover:opacity-100 transition-all text-indigo-400 group-hover:translate-x-0.5">
+                    ➔
+                  </span>
+                </Link>
+              )}
             </div>
 
             <div className="border-t border-slate-50 pt-4 flex items-center justify-between">
@@ -200,11 +224,11 @@ export default function Sidebar() {
 
       {/* Desktop Permanent Sidebar */}
       <aside className="hidden md:flex w-56 shrink-0 flex-col justify-between border-r border-slate-100 bg-white p-4 h-screen sticky top-0">
-        <div>
+        <div className="flex-1 flex flex-col">
           {/* Logo / Brand */}
           <div className="flex items-center space-x-2 px-1 mb-8 mt-1">
             <span className="text-xl">🦷</span>
-            <span className="text-[14px] font-bold text-slate-950 tracking-tight">
+            <span className="text-[14px] font-bold text-slate-955 tracking-tight">
               Clinic Portal
             </span>
           </div>
@@ -225,6 +249,28 @@ export default function Sidebar() {
               );
             })}
           </nav>
+
+          <div className="flex-1" />
+
+          {hasPageAccess(role, "/admin/academy") && (
+            <Link
+              href="/admin/academy"
+              className={`group relative flex flex-col items-start p-3 bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-950 text-white rounded-xl shadow-sm border border-slate-800 transition-all hover:scale-[1.02] cursor-pointer mb-4 ${
+                isActive("/admin/academy") ? "ring-2 ring-indigo-500 ring-offset-2 ring-offset-white" : ""
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <GraduationCap className="h-4 w-4 text-indigo-400 shrink-0" />
+                <span className="text-[11.5px] font-extrabold tracking-tight">Dental OS Academy</span>
+              </div>
+              <p className="text-[9px] text-slate-400 mt-1 font-semibold leading-normal">
+                Self-guided training & interactive guides.
+              </p>
+              <span className="absolute right-2.5 bottom-2.5 opacity-0 group-hover:opacity-100 transition-all text-indigo-400 group-hover:translate-x-0.5">
+                ➔
+              </span>
+            </Link>
+          )}
         </div>
 
         {/* Footer profile area with Logout button */}

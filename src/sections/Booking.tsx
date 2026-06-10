@@ -14,7 +14,7 @@ type FormElement =
 const inputStyles =
   "w-full border border-gray-200 p-4 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-100 transition";
 
-export default function Booking({ clinic }: { clinic?: any }) {
+export default function Booking({ clinic, services }: { clinic?: any; services?: string[] }) {
   const [formData, setFormData] = useState({
     // Patient fields
     fullName: "",
@@ -198,21 +198,20 @@ export default function Booking({ clinic }: { clinic?: any }) {
                 Select Service
               </option>
 
-              <option value="Dental Cleaning">
-                Dental Cleaning
-              </option>
-
-              <option value="Root Canal">
-                Root Canal
-              </option>
-
-              <option value="Teeth Whitening">
-                Teeth Whitening
-              </option>
-
-              <option value="Dental Implants">
-                Dental Implants
-              </option>
+              {(services && services.length > 0
+                ? services
+                : [
+                    "Dental Cleaning",
+                    "Root Canal",
+                    "Teeth Whitening",
+                    "Dental Implants",
+                    "Braces & Aligners",
+                  ]
+              ).map((svc) => (
+                <option key={svc} value={svc}>
+                  {svc}
+                </option>
+              ))}
             </select>
 
             <input

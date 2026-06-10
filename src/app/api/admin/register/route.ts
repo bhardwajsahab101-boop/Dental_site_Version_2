@@ -120,6 +120,9 @@ export async function POST(req: Request) {
       status: "trial",
       trialEndsAt: new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000),
     });
+
+    const { seedDefaultServicesForClinic } = await import("../../../../models/ClinicService");
+    await seedDefaultServicesForClinic(clinic._id);
  
     // 2. Hash Password and Create Owner User
     const hashedPassword = await hashPassword(ownerPassword);

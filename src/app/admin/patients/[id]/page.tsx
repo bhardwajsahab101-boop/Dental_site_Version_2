@@ -158,6 +158,34 @@ export default function PatientProfilePage({ params }: Props) {
   const [notes, setNotes] = useState("");
   const [booking, setBooking] = useState(false);
 
+  // Clinic Services catalog state
+  const [clinicServices, setClinicServices] = useState<any[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(false);
+  const [showAddServiceModal, setShowAddServiceModal] = useState(false);
+  const [newServiceModalName, setNewServiceModalName] = useState("");
+  const [modalAddingService, setModalAddingService] = useState(false);
+
+  async function fetchClinicServices() {
+    setServicesLoading(true);
+    try {
+      const res = await fetch("/api/admin/services");
+      const data = await res.json();
+      if (data.success) {
+        setClinicServices(data.services || []);
+      }
+    } catch (err) {
+      console.error("Error fetching clinic services:", err);
+    } finally {
+      setServicesLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (showBookModal) {
+      fetchClinicServices();
+    }
+  }, [showBookModal]);
+
   // Add/Edit Treatment Modal States
   const [showTreatmentModal, setShowTreatmentModal] = useState(false);
   const [editingTreatment, setEditingTreatment] = useState<Treatment | null>(null);
@@ -1238,15 +1266,30 @@ export default function PatientProfilePage({ params }: Props) {
 
                 <select
                   value={service}
-                  onChange={(e) => setService(e.target.value)}
+                  onChange={(e) => {
+                    if (e.target.value === "ADD_NEW_SERVICE") {
+                      setShowAddServiceModal(true);
+                    } else {
+                      setService(e.target.value);
+                    }
+                  }}
                   required
                   className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700"
                 >
                   <option value="">Choose service...</option>
-                  <option value="Dental Cleaning">Dental Cleaning</option>
-                  <option value="Root Canal">Root Canal</option>
-                  <option value="Teeth Whitening">Teeth Whitening</option>
-                  <option value="Dental Implants">Dental Implants</option>
+                  {servicesLoading ? (
+                    <option disabled>Loading services...</option>
+                  ) : (
+                    clinicServices.map((s) => (
+                      <option key={s._id} value={s.name}>
+                        {s.name}
+                      </option>
+                    ))
+                  )}
+                  {service && service !== "ADD_NEW_SERVICE" && !clinicServices.some(s => s.name === service) && (
+                    <option value={service}>{service}</option>
+                  )}
+                  <option value="ADD_NEW_SERVICE">✨ Add New Service...</option>
                 </select>
               </div>
 
@@ -1823,6 +1866,92 @@ export default function PatientProfilePage({ params }: Props) {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showAddServiceModal && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white border border-slate-100 rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-xs font-bold text-slate-800">Add New Service</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAddServiceModal(false);
+                  setNewServiceModalName("");
+                }}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Service Name
+                </label>
+                <input
+                  type="text"
+                  value={newServiceModalName}
+                  onChange={(e) => setNewServiceModalName(e.target.value)}
+                  placeholder="e.g. Tooth Extraction"
+                  className="block w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:border-indigo-500 outline-none text-slate-700 font-medium"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAddServiceModal(false);
+                    setNewServiceModalName("");
+                  }}
+                  className="px-3.5 py-1.5 bg-slate-100 hover:bg-slate-150 text-slate-700 rounded-xl text-[11px] font-bold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={modalAddingService || !newServiceModalName.trim()}
+                  onClick={async () => {
+                    setModalAddingService(true);
+                    try {
+                      const res = await fetch("/api/admin/services", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ name: newServiceModalName.trim() }),
+                      });
+                      const data = await res.json();
+                      if (data.success) {
+                        toast.success("Service created successfully!");
+                        const newSvcName = data.service.name;
+                        
+                        const updatedRes = await fetch("/api/admin/services");
+                        const updatedData = await updatedRes.json();
+                        if (updatedData.success) {
+                          setClinicServices(updatedData.services || []);
+                        }
+                        
+                        setService(newSvcName);
+                        setShowAddServiceModal(false);
+                        setNewServiceModalName("");
+                      } else {
+                        throw new Error(data.message || "Failed to create service");
+                      }
+                    } catch (err: any) {
+                      console.error(err);
+                      toast.error(err.message || "Error creating service");
+                    } finally {
+                      setModalAddingService(false);
+                    }
+                  }}
+                  className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[11px] font-bold flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {modalAddingService && <Loader2 className="w-3 h-3 animate-spin" />}
+                  <span>Create Service</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
