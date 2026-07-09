@@ -32,6 +32,7 @@ export async function POST(req: Request) {
       ownerName,
       ownerEmail,
       ownerPassword,
+      accessKey,
     } = body;
  
     // Validation
@@ -108,6 +109,11 @@ export async function POST(req: Request) {
     const { getSaaSSettings } = await import("../../../../models/SaaSSettings");
     const saasSettings = await getSaaSSettings();
     const trialDays = saasSettings?.defaultTrialDays || 14;
+ 
+    const systemSecretKey = process.env.ANNUAL_ACCESS_KEY || "ANNUAL365";
+    const isAnnual = accessKey && String(accessKey).trim() === systemSecretKey;
+    const plan = isAnnual ? "Professional" : "Trial";
+    const durationDays = isAnnual ? 365 : trialDays;
 
     const clinic = await Clinic.create({
       slug: uniqueSlug,
@@ -117,12 +123,12 @@ export async function POST(req: Request) {
       address: clinicAddress.trim(),
       logo: "",
       gstNumber: "",
-      status: "trial",
-      trialEndsAt: new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000),
-      subscriptionPlan: "Trial",
+      status: isAnnual ? "active" : "trial",
+      trialEndsAt: new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000),
+      subscriptionPlan: plan,
       subscriptionStatus: "active",
       subscriptionStartDate: new Date(),
-      subscriptionEndDate: new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000),
+      subscriptionEndDate: new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000),
       isActive: true,
       productType: "DentalOS",
     });

@@ -21,6 +21,7 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [accessKey, setAccessKey] = useState("");
   const [mounted, setMounted] = useState(false);
   const [loadingUser, setLoadingUser] = useState(true);
   const [registeredSlug, setRegisteredSlug] = useState<string | null>(null);
@@ -63,6 +64,7 @@ export default function RegisterPage() {
           ownerName,
           ownerEmail,
           ownerPassword,
+          accessKey,
         }),
       });
  
@@ -175,6 +177,7 @@ export default function RegisterPage() {
                 setOwnerName("");
                 setOwnerEmail("");
                 setOwnerPassword("");
+                setAccessKey("");
               }}
               className="flex-1 inline-flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-700 py-2.5 rounded-xl text-xs font-bold transition-all text-center border border-slate-200 cursor-pointer"
             >
@@ -289,6 +292,23 @@ export default function RegisterPage() {
                     className="w-full bg-slate-50 border border-slate-100 hover:border-slate-200/80 focus:border-slate-900 rounded-xl pl-10 pr-3 py-2 text-xs text-slate-850 text-slate-800 placeholder-slate-450 focus:outline-none transition-colors"
                   />
                 </div>
+              </div>
+            </div>
+
+            {/* Secret Activation Key */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider block">
+                Secret Activation Key (Optional)
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={accessKey}
+                  onChange={(e) => setAccessKey(e.target.value)}
+                  placeholder="Enter secret key for annual access (e.g. ANNUAL365)"
+                  className="w-full bg-slate-50 border border-slate-100 hover:border-slate-200/80 focus:border-slate-900 rounded-xl pl-10 pr-3 py-2 text-xs text-slate-850 text-slate-800 placeholder-slate-450 focus:outline-none transition-colors"
+                />
               </div>
             </div>
           </div>
