@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { resolveTenantInfo } from "../../../../lib/subdomain";
 
 export async function POST(req: Request) {
   try {
@@ -9,17 +10,8 @@ export async function POST(req: Request) {
 
     // Resolve cookie domain for subdomain sharing
     const hostHeader = req.headers.get("host") || "";
-    const hostname = hostHeader.split(":")[0].toLowerCase();
-    let cookieDomain = undefined;
-
-    if (hostname.endsWith(".lvh.me")) {
-      cookieDomain = ".lvh.me";
-    } else if (hostname !== "localhost" && hostname !== "127.0.0.1") {
-      const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "launchstack.in";
-      if (hostname.endsWith("." + rootDomain)) {
-        cookieDomain = `.${rootDomain}`;
-      }
-    }
+    const tenantInfo = resolveTenantInfo(hostHeader);
+    const cookieDomain = tenantInfo.cookieDomain;
 
     // Clear HTTP-only cookie by setting maxAge to 0 on the correct wildcard domain
     response.cookies.set("admin_token", "", {

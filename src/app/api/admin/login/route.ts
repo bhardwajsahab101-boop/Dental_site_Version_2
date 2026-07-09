@@ -3,7 +3,7 @@ import { signJWT, hashPassword } from "../../../../lib/auth";
 import { connectDB } from "../../../../lib/mongodb";
 import { User } from "../../../../models/User";
 import { Clinic } from "../../../../models/Clinic";
-import { isRootHost } from "../../../../lib/subdomain";
+import { resolveTenantInfo } from "../../../../lib/subdomain";
  
 export async function POST(req: Request) {
   try {
@@ -132,17 +132,8 @@ export async function POST(req: Request) {
 
     // Resolve cookie domain for subdomain sharing
     const hostHeader = req.headers.get("host") || "";
-    const hostname = hostHeader.split(":")[0].toLowerCase();
-    let cookieDomain = undefined;
-
-    if (hostname.endsWith(".lvh.me")) {
-      cookieDomain = ".lvh.me";
-    } else if (!isRootHost(hostname)) {
-      const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "launchstack.in";
-      if (hostname.endsWith("." + rootDomain)) {
-        cookieDomain = `.${rootDomain}`;
-      }
-    }
+    const tenantInfo = resolveTenantInfo(hostHeader);
+    const cookieDomain = tenantInfo.cookieDomain;
  
     // Set HTTP-only secure cookie on the resolved wildcard domain
     response.cookies.set("admin_token", token, {

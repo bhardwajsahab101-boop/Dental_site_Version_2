@@ -18,6 +18,7 @@ import {
   GraduationCap
 } from "lucide-react";
 import { hasPageAccess } from "../../lib/permissions";
+import { resolveTenantInfo } from "../../lib/subdomain";
 
 const ToothIcon = () => (
   <svg className="h-5 w-5 text-violet-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -98,19 +99,13 @@ export default function Sidebar() {
         // Dynamically resolve central root domain for redirection
         const currentHost = window.location.host;
         const protocol = window.location.protocol;
+        const tenantInfo = resolveTenantInfo(currentHost);
         
-        if (currentHost.includes("lvh.me")) {
-          const port = currentHost.split(":")[1] || "3000";
+        if (tenantInfo.rootDomain === "lvh.me" || tenantInfo.rootDomain === "localhost") {
+          const port = window.location.port || "3000";
           window.location.href = `${protocol}//localhost:${port}/admin/login`;
-        } else if (currentHost.includes("launchstack.in")) {
-          const parts = currentHost.split(".");
-          let mainDomain = "launchstack.in";
-          if (parts.length > 2) {
-            mainDomain = parts.slice(parts.length - 2).join(".");
-          }
-          window.location.href = `${protocol}//${mainDomain}/admin/login`;
         } else {
-          window.location.href = "/admin/login";
+          window.location.href = `${protocol}//${tenantInfo.rootDomain}/admin/login`;
         }
       } else {
         throw new Error(data.message || "Failed to log out");

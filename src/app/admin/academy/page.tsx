@@ -255,6 +255,281 @@ function ScreenshotMockup({ type, title }: { type: string; title: string }) {
   );
 }
 
+function NavigationMockup({ stepText }: { stepText: string }) {
+  const lower = stepText.toLowerCase();
+  const activeItem = lower.includes("settings") ? "Settings" :
+                     lower.includes("staff") ? "Staff" :
+                     lower.includes("patient") ? "Patients" :
+                     lower.includes("calendar") || lower.includes("appointment") ? "Calendar" :
+                     lower.includes("treatment") ? "Treatments" :
+                     lower.includes("finance") || lower.includes("revenue") || lower.includes("collected") || lower.includes("outstanding") ? "Finance" :
+                     lower.includes("analytics") || lower.includes("report") || lower.includes("growth") ? "Analytics" : "Dashboard";
+
+  const items = [
+    { name: "Dashboard", icon: Activity },
+    { name: "Patients", icon: Users },
+    { name: "Calendar", icon: Calendar },
+    { name: "Finance", icon: Coins },
+    { name: "Settings", icon: Settings }
+  ];
+
+  return (
+    <div className="bg-slate-950 border border-slate-900 rounded-xl p-3 flex items-start space-x-3 font-sans h-[95px] select-none overflow-hidden relative shadow-inner">
+      <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/[0.03] to-transparent pointer-events-none" />
+      {/* Mini Sidebar */}
+      <div className="w-[85px] border-r border-slate-900 pr-2 space-y-1 shrink-0 h-full flex flex-col justify-center">
+        {items.slice(0, 4).map((item) => {
+          const isActive = item.name === activeItem;
+          const Icon = item.icon;
+          return (
+            <div key={item.name} className={`flex items-center space-x-1.5 px-1.5 py-0.5 rounded text-[8px] font-bold transition-all ${
+              isActive ? "bg-indigo-600/90 text-white shadow-sm shadow-indigo-600/10" : "text-slate-500"
+            }`}>
+              <Icon className="h-2.5 w-2.5 shrink-0" />
+              <span className="truncate">{item.name}</span>
+            </div>
+          );
+        })}
+      </div>
+      {/* Mini View */}
+      <div className="flex-1 flex flex-col justify-center h-full space-y-1.5">
+        <div className="text-[9px] font-extrabold text-slate-200 flex items-center space-x-1">
+          <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse" />
+          <span>Sidebar Navigation</span>
+        </div>
+        <div className="text-[8px] text-slate-450 leading-relaxed line-clamp-2">
+          Select <span className="text-indigo-400 font-extrabold">{activeItem}</span> from the main sidebar to access controls.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FormMockup({ stepText }: { stepText: string }) {
+  let label1 = "Full Name";
+  let val1 = "John Doe";
+  let label2 = "Phone Number";
+  let val2 = "+1 (555) 123-4567";
+
+  if (stepText.toLowerCase().includes("clinic") || stepText.toLowerCase().includes("profile")) {
+    label1 = "Clinic Name";
+    val1 = "Apex Dental Care";
+    label2 = "Address";
+    val2 = "123 Health Ave";
+  } else if (stepText.toLowerCase().includes("staff") || stepText.toLowerCase().includes("role")) {
+    label1 = "Staff Name";
+    val1 = "Dr. Sarah Conner";
+    label2 = "Role";
+    val2 = "Doctor";
+  } else if (stepText.toLowerCase().includes("treatment") || stepText.toLowerCase().includes("diagnosis") || stepText.toLowerCase().includes("tooth")) {
+    label1 = "Diagnosis";
+    val1 = "Deep Caries Restored";
+    label2 = "Tooth #";
+    val2 = "18";
+  } else if (stepText.toLowerCase().includes("cost") || stepText.toLowerCase().includes("pay")) {
+    label1 = "Cost ($)";
+    val1 = "350.00";
+    label2 = "Paid Amount";
+    val2 = "350.00";
+  }
+
+  return (
+    <div className="bg-slate-950 border border-slate-900 rounded-xl p-3 flex flex-col justify-center space-y-2 h-[95px] font-sans overflow-hidden select-none relative shadow-inner">
+      <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/[0.03] to-transparent pointer-events-none" />
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <div className="text-[7px] text-slate-500 font-extrabold uppercase tracking-wider">{label1}</div>
+          <div className="h-5 px-1.5 border border-slate-900 rounded-lg bg-slate-900/40 flex items-center text-[8px] font-bold text-slate-300">
+            <span className="truncate">{val1}</span>
+            <span className="w-0.5 h-2.5 bg-indigo-500 ml-0.5 animate-pulse shrink-0" />
+          </div>
+        </div>
+        <div className="space-y-1">
+          <div className="text-[7px] text-slate-500 font-extrabold uppercase tracking-wider">{label2}</div>
+          <div className="h-5 px-1.5 border border-slate-900 rounded-lg bg-slate-900/40 flex items-center text-[8px] font-bold text-slate-300 truncate">
+            <span className="truncate">{val2}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ActionMockup({ stepText }: { stepText: string }) {
+  let btnText = "Save Changes";
+  let status = "Changes saved successfully!";
+  if (stepText.toLowerCase().includes("register") || stepText.toLowerCase().includes("patient")) {
+    btnText = "Register Patient";
+    status = "Patient registered!";
+  } else if (stepText.toLowerCase().includes("staff")) {
+    btnText = "Add Staff";
+    status = "Staff profile created!";
+  } else if (stepText.toLowerCase().includes("book") || stepText.toLowerCase().includes("appointment")) {
+    btnText = "Book Appointment";
+    status = "Appointment scheduled!";
+  } else if (stepText.toLowerCase().includes("delete") || stepText.toLowerCase().includes("remove")) {
+    btnText = "Confirm Delete";
+    status = "Deleted successfully.";
+  } else if (stepText.toLowerCase().includes("service")) {
+    btnText = "Add New Service";
+    status = "Service added to catalog!";
+  }
+
+  const [clicked, setClicked] = useState(false);
+
+  return (
+    <div className="bg-slate-950 border border-slate-900 rounded-xl p-3 flex flex-col justify-center items-center h-[95px] font-sans select-none overflow-hidden space-y-2 relative shadow-inner">
+      <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/[0.03] to-transparent pointer-events-none" />
+      <button
+        onClick={() => {
+          setClicked(true);
+          const t = setTimeout(() => setClicked(false), 2500);
+          return () => clearTimeout(t);
+        }}
+        className={`px-3.5 py-1.5 text-[8.5px] font-extrabold rounded-lg shadow-sm border transition-all duration-200 cursor-pointer ${
+          clicked
+            ? "bg-emerald-600 border-emerald-500 text-white scale-95"
+            : "bg-indigo-600 hover:bg-indigo-500 border-indigo-500 text-white active:scale-95 shadow-indigo-650/10"
+        }`}
+      >
+        {clicked ? "✓ Done" : btnText}
+      </button>
+      <div className={`text-[7.5px] font-bold transition-all duration-300 ${
+        clicked ? "text-emerald-400 opacity-100 translate-y-0" : "text-slate-500 opacity-0 -translate-y-1"
+      }`}>
+        {status}
+      </div>
+    </div>
+  );
+}
+
+function SearchMockup({ stepText }: { stepText: string }) {
+  const [query, setQuery] = useState("");
+  useEffect(() => {
+    let index = 0;
+    const target = "Aria Stark";
+    const timer = setInterval(() => {
+      setQuery(target.slice(0, index + 1));
+      index++;
+      if (index >= target.length) {
+        setTimeout(() => {
+          index = 0;
+          setQuery("");
+        }, 2000);
+      }
+    }, 150);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="bg-slate-950 border border-slate-900 rounded-xl p-2.5 flex flex-col justify-between h-[95px] font-sans select-none overflow-hidden relative shadow-inner">
+      <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/[0.03] to-transparent pointer-events-none" />
+      <div className="flex items-center space-x-1.5 border border-slate-900 rounded-lg bg-slate-900/40 px-2 py-1">
+        <Search className="h-2.5 w-2.5 text-slate-500 shrink-0" />
+        <div className="text-[8.5px] font-bold text-slate-300 flex-1 truncate">
+          {query || <span className="text-slate-655 font-medium">Search records...</span>}
+        </div>
+      </div>
+      
+      <div className="border border-slate-900/60 rounded-lg bg-slate-900/20 p-1.5 flex items-center justify-between text-[7.5px]">
+        <div className="font-extrabold text-slate-350 flex items-center space-x-1">
+          <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+          <span>Aria Stark</span>
+        </div>
+        <div className="text-slate-500 text-[6.5px] font-mono">+91 98765 XXXXX</div>
+      </div>
+    </div>
+  );
+}
+
+function AnalyticsMockup() {
+  return (
+    <div className="bg-slate-950 border border-slate-900 rounded-xl p-3 flex items-center justify-between h-[95px] font-sans select-none overflow-hidden relative shadow-inner">
+      <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/[0.03] to-transparent pointer-events-none" />
+      <div className="space-y-1 flex-1">
+        <span className="text-[7px] font-extrabold text-slate-500 uppercase tracking-wider block">Gross Income</span>
+        <span className="text-[11px] font-black text-white font-mono block">$25,500</span>
+        <span className="text-[6.5px] text-emerald-400 font-extrabold block">▲ +12.4% vs last mo</span>
+      </div>
+      <div className="flex items-end space-x-1 h-full pt-4 max-w-[80px]">
+        {[30, 45, 60, 40, 75].map((h, i) => (
+          <div
+            key={i}
+            className="bg-indigo-650 w-2 rounded-t transition-all hover:bg-indigo-550"
+            style={{ height: `${h}%` }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ListMockup({ stepText }: { stepText: string }) {
+  let item1 = { name: "Dr. Alex Mercer", sub: "doctor@clinic.com", badge: "Doctor", badgeBg: "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20" };
+  let item2 = { name: "Jessica Simpson", sub: "reception@clinic.com", badge: "Reception", badgeBg: "bg-amber-500/10 text-amber-400 border border-amber-500/20" };
+
+  if (stepText.toLowerCase().includes("patient")) {
+    item1 = { name: "Aria Stark", sub: "Age: 18 • Consultation", badge: "Paid", badgeBg: "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" };
+    item2 = { name: "Bruce Wayne", sub: "Age: 35 • Cleaning", badge: "Partial", badgeBg: "bg-rose-500/10 text-rose-400 border border-rose-500/20" };
+  } else if (stepText.toLowerCase().includes("service")) {
+    item1 = { name: "Tooth Extraction", sub: "General Surgery", badge: "Active", badgeBg: "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20" };
+    item2 = { name: "Root Canal", sub: "Endodontics", badge: "Active", badgeBg: "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20" };
+  }
+
+  return (
+    <div className="bg-slate-950 border border-slate-900 rounded-xl p-2 flex flex-col justify-center space-y-1.5 h-[95px] font-sans select-none overflow-hidden relative shadow-inner">
+      <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/[0.03] to-transparent pointer-events-none" />
+      {[item1, item2].map((item, idx) => (
+        <div key={idx} className="p-1 rounded-lg bg-slate-900/30 border border-slate-900/60 flex items-center justify-between text-[7px]">
+          <div>
+            <div className="font-extrabold text-slate-300 text-[8px] leading-tight">{item.name}</div>
+            <div className="text-slate-550 text-[6.5px] font-semibold mt-0.5 leading-none">{item.sub}</div>
+          </div>
+          <span className={`text-[6px] font-black px-1 py-0.25 rounded-md uppercase shrink-0 leading-none ${item.badgeBg}`}>
+            {item.badge}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function GenericMockup({ topicTitle }: { topicTitle: string }) {
+  return (
+    <div className="bg-slate-950 border border-slate-900 rounded-xl p-3 flex flex-col justify-center items-center h-[95px] font-sans select-none overflow-hidden relative shadow-inner">
+      <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/[0.04] via-transparent to-transparent pointer-events-none" />
+      <div className="flex flex-col items-center text-center space-y-1">
+        <Camera className="h-4 w-4 text-indigo-400 animate-pulse" />
+        <span className="text-[7.5px] font-extrabold text-indigo-350 uppercase tracking-widest leading-none mt-1">{topicTitle}</span>
+        <span className="text-[6.5px] text-slate-550 uppercase tracking-wider font-semibold">Ready to Preview</span>
+      </div>
+    </div>
+  );
+}
+
+function StepDemoPlaceholder({ stepText, topicTitle }: { stepText: string; topicTitle: string }) {
+  const text = stepText.toLowerCase();
+  if (text.includes("navigate") || text.includes("go to") || text.includes("switch to") || text.includes("open the") || text.includes("sidebar") || text.includes("locate")) {
+    return <NavigationMockup stepText={stepText} />;
+  }
+  if (text.includes("fill") || text.includes("enter") || text.includes("input") || text.includes("type") || text.includes("specify") || text.includes("choose") || text.includes("select")) {
+    return <FormMockup stepText={stepText} />;
+  }
+  if (text.includes("click") || text.includes("save") || text.includes("submit") || text.includes("confirm") || text.includes("toggle") || text.includes("delete") || text.includes("turn") || text.includes("remove")) {
+    return <ActionMockup stepText={stepText} />;
+  }
+  if (text.includes("search") || text.includes("filter") || text.includes("find")) {
+    return <SearchMockup stepText={stepText} />;
+  }
+  if (text.includes("graph") || text.includes("chart") || text.includes("analytics") || text.includes("dashboard") || text.includes("revenue") || text.includes("collected") || text.includes("outstanding") || text.includes("sum") || text.includes("finance")) {
+    return <AnalyticsMockup />;
+  }
+  if (text.includes("list") || text.includes("history") || text.includes("records") || text.includes("table") || text.includes("details") || text.includes("view") || text.includes("review")) {
+    return <ListMockup stepText={stepText} />;
+  }
+  return <GenericMockup topicTitle={topicTitle} />;
+}
+
 function TopicItem({ topic }: { topic: Topic }) {
   const [showScreenshot, setShowScreenshot] = useState(false);
 
@@ -281,17 +556,30 @@ function TopicItem({ topic }: { topic: Topic }) {
       </div>
 
       {/* Step list */}
-      <div className="space-y-2">
-        <h5 className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+      <div className="space-y-3">
+        <h5 className="text-[9.5px] font-extrabold text-slate-400 uppercase tracking-wider">
           Steps to Perform
         </h5>
-        <ol className="list-decimal pl-4.5 space-y-1.5 text-xs text-slate-655 font-medium">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {topic.steps.map((step, sIdx) => (
-            <li key={sIdx} className="leading-relaxed pl-1">
-              {step}
-            </li>
+            <div key={sIdx} className="bg-slate-50/50 border border-slate-150 rounded-2xl p-4 flex flex-col justify-between space-y-3 hover:border-slate-350 hover:shadow-sm transition-all duration-200">
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <span className="flex items-center justify-center bg-indigo-50 text-indigo-700 text-[10px] font-black h-5 w-5 rounded-full border border-indigo-100">
+                    {sIdx + 1}
+                  </span>
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Step {sIdx + 1}</span>
+                </div>
+                <p className="text-[11.5px] text-slate-600 font-medium leading-relaxed">
+                  {step}
+                </p>
+              </div>
+              <div className="mt-2">
+                <StepDemoPlaceholder stepText={step} topicTitle={topic.title} />
+              </div>
+            </div>
           ))}
-        </ol>
+        </div>
       </div>
 
       {/* Screenshot Mockup Container */}

@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { verifyJWT } from "./lib/auth";
 import { hasPageAccess, hasApiAccess } from "./lib/permissions";
-import { getSubdomainSlug, isRootHost } from "./lib/subdomain";
+import { resolveTenantInfo } from "./lib/subdomain";
  
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const host = request.headers.get("host") || "";
-  const currentSlug = getSubdomainSlug(host);
+  const tenantInfo = resolveTenantInfo(host);
+  const currentSlug = tenantInfo.tenantSlug;
  
   console.log(`[Middleware Request] Host: ${host} | Extracted Slug: ${currentSlug} | Pathname: ${pathname}`);
  
@@ -50,25 +51,12 @@ export async function middleware(request: NextRequest) {
       // Clear invalid cookie and redirect to login
       const response = NextResponse.redirect(new URL("/admin/login", request.url));
       
-      const host = request.headers.get("host") || "";
-      const hostname = host.split(":")[0].toLowerCase();
-      let cookieDomain = undefined;
- 
-      if (hostname.endsWith(".lvh.me")) {
-        cookieDomain = ".lvh.me";
-      } else if (!isRootHost(hostname)) {
-        const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "launchstack.in";
-        if (hostname.endsWith("." + rootDomain)) {
-          cookieDomain = `.${rootDomain}`;
-        }
-      }
- 
       response.cookies.set("admin_token", "", {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         path: "/",
-        domain: cookieDomain,
+        domain: tenantInfo.cookieDomain,
         maxAge: 0,
       });
  
@@ -90,13 +78,15 @@ export async function middleware(request: NextRequest) {
       
       // Strict matching: clinic user must be on their specific subdomain
       // Disable tenant redirect logic if running on a Vercel deployment URL
-      const isVercel = host.split(":")[0].toLowerCase().endsWith(".vercel.app") || host.split(":")[0].toLowerCase() === "vercel.app";
+      const isVercel = tenantInfo.rootDomain.endsWith(".vercel.app") || tenantInfo.rootDomain === "vercel.app";
       if (!isVercel && (currentSlug === "default" || currentSlug !== userSlug)) {
         console.warn(`Blocked cross-tenant access to page: user clinic '${userSlug}' tried to access subdomain '${currentSlug}'`);
         // Redirect them to their own correct subdomain admin page
         const protocol = request.nextUrl.protocol;
-        const rootDomain = host.includes("localhost") ? "lvh.me:3000" : host.split(".").slice(-2).join(".");
-        const targetUrl = `${protocol}//${userSlug}.${rootDomain}/admin`;
+        const targetRoot = tenantInfo.rootDomain === "lvh.me" || tenantInfo.rootDomain === "localhost"
+          ? `lvh.me:${request.nextUrl.port || "3000"}`
+          : tenantInfo.rootDomain;
+        const targetUrl = `${protocol}//${userSlug}.${targetRoot}/admin`;
         return NextResponse.redirect(new URL(targetUrl));
       }
     }
@@ -160,7 +150,7 @@ export async function middleware(request: NextRequest) {
         detectedSlug: currentSlug
       });
 
-      const isVercel = host.split(":")[0].toLowerCase().endsWith(".vercel.app") || host.split(":")[0].toLowerCase() === "vercel.app";
+      const isVercel = tenantInfo.rootDomain.endsWith(".vercel.app") || tenantInfo.rootDomain === "vercel.app";
       if (!isVercel && (currentSlug === "default" || currentSlug !== userSlug)) {
         console.warn(`Blocked cross-tenant access to API: user clinic '${userSlug}' tried to access subdomain '${currentSlug}'`);
         return NextResponse.json(

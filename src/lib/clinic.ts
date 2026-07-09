@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { connectDB } from "./mongodb";
 import { Clinic } from "../models/Clinic";
-import { getSubdomainSlug, isRootHost } from "./subdomain";
+import { resolveTenantInfo } from "./subdomain";
  
 // 1. Get current clinic slug (subdomain)
 export async function getCurrentClinicSlug(): Promise<string> {
@@ -13,15 +13,16 @@ export async function getCurrentClinicSlug(): Promise<string> {
 
   // Fallback: parse host header directly
   const host = headersList.get("host") || "";
-  return getSubdomainSlug(host);
+  return resolveTenantInfo(host).tenantSlug;
 }
  
 // 2. Get current clinic ID
 export async function getCurrentClinicId(): Promise<string | null> {
   const headersList = await headers();
   const host = headersList.get("host") || "";
-  const isRoot = isRootHost(host);
-  const slug = isRoot ? "default" : await getCurrentClinicSlug();
+  const tenantInfo = resolveTenantInfo(host);
+  const isRoot = tenantInfo.isRoot;
+  const slug = isRoot ? "default" : tenantInfo.tenantSlug;
   
   await connectDB();
   
@@ -80,8 +81,9 @@ export async function getCurrentClinicId(): Promise<string | null> {
 export async function getCurrentClinic() {
   const headersList = await headers();
   const host = headersList.get("host") || "";
-  const isRoot = isRootHost(host);
-  const slug = isRoot ? "default" : await getCurrentClinicSlug();
+  const tenantInfo = resolveTenantInfo(host);
+  const isRoot = tenantInfo.isRoot;
+  const slug = isRoot ? "default" : tenantInfo.tenantSlug;
   
   await connectDB();
   
