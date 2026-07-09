@@ -9,9 +9,9 @@ export function hasPageAccess(role: string, pathname: string): boolean {
     return ["admin"].includes(role);
   }
 
-  // Other roles cannot register clinics
-  if (normPath.startsWith("/admin/register")) {
-    return false;
+  // Subscriptions page: Super Admin only
+  if (normPath.startsWith("/admin/subscriptions")) {
+    return ["admin"].includes(role);
   }
 
   // Clinic Settings: Owner or Admin

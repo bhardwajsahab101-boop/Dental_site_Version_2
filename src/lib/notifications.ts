@@ -175,3 +175,69 @@ Message:
 "${message.message}"`,
   });
 }
+
+/**
+ * Sends a notification for subscription status warnings and expiration.
+ */
+export async function notifySubscriptionStatus(clinic: {
+  name: string;
+  email: string;
+  daysRemaining: number;
+}) {
+  const adminEmail = process.env.ADMIN_EMAIL || "admin@dental.com";
+  let subject = "";
+  let body = "";
+
+  if (clinic.daysRemaining === 15) {
+    subject = `Subscription Reminder: 15 Days Left for ${clinic.name}`;
+    body = `Hello,
+
+This is a friendly reminder that your subscription for ${clinic.name} has 15 days remaining. 
+Please renew soon to ensure uninterrupted service.
+
+Best regards,
+LaunchStack Support`;
+  } else if (clinic.daysRemaining === 7) {
+    subject = `Subscription Warning: 7 Days Left for ${clinic.name}`;
+    body = `Hello,
+
+Your subscription for ${clinic.name} will expire in 7 days.
+Please renew your subscription to maintain full access to your clinical dashboard.
+
+Best regards,
+LaunchStack Support`;
+  } else if (clinic.daysRemaining === 3) {
+    subject = `URGENT Subscription Warning: 3 Days Left for ${clinic.name}`;
+    body = `Hello,
+
+URGENT: Your subscription for ${clinic.name} expires in 3 days!
+To prevent access lock-out, please renew your subscription immediately.
+
+Best regards,
+LaunchStack Support`;
+  } else if (clinic.daysRemaining <= 0) {
+    subject = `Subscription Expired: ${clinic.name}`;
+    body = `Hello,
+
+Your subscription for ${clinic.name} has expired.
+Access to your account has been locked. Please renew now to restore access.
+
+Best regards,
+LaunchStack Support`;
+  }
+
+  if (subject && body) {
+    // Send to tenant email
+    await sendNotification({
+      toEmail: clinic.email,
+      subject,
+      body,
+    });
+    // Send to admin email
+    await sendNotification({
+      toEmail: adminEmail,
+      subject: `Admin Log: ${subject}`,
+      body,
+    });
+  }
+}

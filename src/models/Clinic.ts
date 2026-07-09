@@ -10,6 +10,13 @@ export interface IClinic extends Document {
   gstNumber?: string;
   status: "active" | "suspended" | "trial";
   trialEndsAt: Date;
+  subscriptionPlan?: string;
+  subscriptionStatus?: string;
+  subscriptionStartDate?: Date;
+  subscriptionEndDate?: Date;
+  isActive?: boolean;
+  productType?: string;
+  lastSubscriptionWarningDaysLeft?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -65,6 +72,33 @@ const clinicSchema = new Schema<IClinic>(
       type: Date,
       default: () => new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days trial
       required: true,
+    },
+    subscriptionPlan: {
+      type: String,
+      default: "Trial",
+    },
+    subscriptionStatus: {
+      type: String,
+      default: "active",
+    },
+    subscriptionStartDate: {
+      type: Date,
+      default: () => new Date(),
+    },
+    subscriptionEndDate: {
+      type: Date,
+      default: () => new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
+    productType: {
+      type: String,
+      default: "DentalOS",
+    },
+    lastSubscriptionWarningDaysLeft: {
+      type: Number,
     },
   },
   {

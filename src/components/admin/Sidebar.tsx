@@ -15,7 +15,8 @@ import {
   Settings,
   Users,
   Coins,
-  GraduationCap
+  GraduationCap,
+  CreditCard
 } from "lucide-react";
 import { hasPageAccess } from "../../lib/permissions";
 import { resolveTenantInfo } from "../../lib/subdomain";
@@ -65,6 +66,7 @@ export default function Sidebar() {
     { name: "Patients", href: "/admin/patients", icon: LogOut },
     { name: "Staff Management", href: "/admin/users", icon: Users },
     { name: "Settings", href: "/admin/settings", icon: Settings },
+    { name: "Subscriptions", href: "/admin/subscriptions", icon: CreditCard },
     { name: "Register Clinic", href: "/admin/register", icon: Settings }
   ];
 

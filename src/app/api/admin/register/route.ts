@@ -119,6 +119,12 @@ export async function POST(req: Request) {
       gstNumber: "",
       status: "trial",
       trialEndsAt: new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000),
+      subscriptionPlan: "Trial",
+      subscriptionStatus: "active",
+      subscriptionStartDate: new Date(),
+      subscriptionEndDate: new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000),
+      isActive: true,
+      productType: "DentalOS",
     });
 
     const { seedDefaultServicesForClinic } = await import("../../../../models/ClinicService");
