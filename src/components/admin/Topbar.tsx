@@ -208,12 +208,18 @@ export default function Topbar() {
       <div className="flex items-center space-x-4">
         {/* Subscription Status Badge */}
         {subscription && (() => {
-          const { plan, status, subscriptionEndDate, daysLeft } = subscription;
+          const { plan, status, subscriptionEndDate, daysLeft, isInfinite } = subscription;
           let badgeColorClass = "";
           let dotColorClass = "";
           let labelText = "";
 
-          if (status === "expired" || daysLeft <= 0) {
+          const isInf = isInfinite || plan === "Super Admin" || daysLeft > 50000;
+
+          if (isInf) {
+            badgeColorClass = "bg-indigo-50 text-indigo-700 border-indigo-100";
+            dotColorClass = "bg-indigo-500";
+            labelText = "Admin • Infinite";
+          } else if (status === "expired" || daysLeft <= 0) {
             badgeColorClass = "bg-slate-100 text-slate-700 border-slate-200";
             dotColorClass = "bg-slate-500";
             labelText = "Subscription Expired";
@@ -287,7 +293,7 @@ export default function Topbar() {
                         <div className="flex justify-between items-center text-[10.5px]">
                           <span className="font-semibold text-slate-400">Expiry Date</span>
                           <span className="font-bold text-slate-700">
-                            {new Date(subscriptionEndDate).toLocaleDateString("en-GB", {
+                            {isInf ? "Never (Infinite)" : new Date(subscriptionEndDate).toLocaleDateString("en-GB", {
                               day: "numeric",
                               month: "long",
                               year: "numeric",
@@ -297,16 +303,18 @@ export default function Topbar() {
                         
                         <div className="flex justify-between items-center text-[10.5px]">
                           <span className="font-semibold text-slate-400">Days Remaining</span>
-                          <span className="font-bold text-slate-700">{daysLeft} Days</span>
+                          <span className="font-bold text-slate-700">{isInf ? "Infinite" : `${daysLeft} Days`}</span>
                         </div>
                       </div>
 
-                      <button
-                        onClick={() => toast.success("Redirecting to payment gateway...")}
-                        className="w-full py-1.5 bg-[#5f22e6] hover:bg-[#4b18c0] text-white rounded-lg text-[10.5px] font-bold shadow-md hover:shadow-lg transition-all cursor-pointer border-0"
-                      >
-                        Renew Subscription
-                      </button>
+                      {!isInf && (
+                        <button
+                          onClick={() => toast.success("Redirecting to payment gateway...")}
+                          className="w-full py-1.5 bg-[#5f22e6] hover:bg-[#4b18c0] text-white rounded-lg text-[10.5px] font-bold shadow-md hover:shadow-lg transition-all cursor-pointer border-0"
+                        >
+                          Renew Subscription
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>

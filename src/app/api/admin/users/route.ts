@@ -4,6 +4,7 @@ import { User } from "../../../../models/User";
 import { Clinic } from "../../../../models/Clinic";
 import { getCurrentUser, hashPassword } from "../../../../lib/auth";
 import { logActivity } from "../../../../lib/audit";
+import { getSubscriptionInfo } from "../../../../lib/subscription";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,7 @@ export async function GET() {
       const users = await User.find({}).select("-password").sort({ createdAt: -1 }).lean();
 
       clinicsData = clinics.map((clinic: any) => {
+        const subInfo = getSubscriptionInfo(clinic);
         const clinicUsers = users
           .filter((u: any) => String(u.clinicId) === String(clinic._id))
           .map((u: any) => ({
@@ -37,6 +39,9 @@ export async function GET() {
 
         return {
           ...clinic,
+          subscriptionPlan: subInfo.plan,
+          subscriptionStatus: subInfo.status,
+          daysLeft: subInfo.daysLeft,
           users: clinicUsers,
         };
       });
@@ -48,17 +53,23 @@ export async function GET() {
         .sort({ createdAt: -1 })
         .lean();
 
-      clinicsData = clinic
-        ? [
-            {
-              ...clinic,
-              users: users.map((u: any) => ({
-                ...u,
-                isActive: u.isActive !== false,
-              })),
-            },
-          ]
-        : [];
+      if (clinic) {
+        const subInfo = getSubscriptionInfo(clinic);
+        clinicsData = [
+          {
+            ...clinic,
+            subscriptionPlan: subInfo.plan,
+            subscriptionStatus: subInfo.status,
+            daysLeft: subInfo.daysLeft,
+            users: users.map((u: any) => ({
+              ...u,
+              isActive: u.isActive !== false,
+            })),
+          },
+        ];
+      } else {
+        clinicsData = [];
+      }
     }
 
     return NextResponse.json({

@@ -1,18 +1,42 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "../../../../lib/mongodb";
 import { Clinic } from "../../../../models/Clinic";
-import { getCurrentClinic } from "../../../../lib/auth";
+import { getCurrentClinic, getCurrentUser } from "../../../../lib/auth";
 import { getSubscriptionInfo, checkAndTriggerReminder } from "../../../../lib/subscription";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const clinicId = await getCurrentClinic();
-    if (!clinicId) {
+    const session = await getCurrentUser();
+    if (!session) {
       return NextResponse.json(
         { success: false, message: "Unauthorized access" },
         { status: 401 }
+      );
+    }
+
+    if (session.role === "admin") {
+      return NextResponse.json({
+        success: true,
+        subscription: {
+          plan: "Super Admin",
+          status: "active",
+          subscriptionStartDate: new Date(),
+          subscriptionEndDate: new Date(),
+          daysLeft: 999999,
+          isInfinite: true,
+          isActive: true,
+          productType: "Platform",
+        },
+      });
+    }
+
+    const clinicId = session.clinicId;
+    if (!clinicId) {
+      return NextResponse.json(
+        { success: false, message: "Clinic not resolved" },
+        { status: 400 }
       );
     }
 

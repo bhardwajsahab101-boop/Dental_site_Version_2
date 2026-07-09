@@ -352,6 +352,22 @@ export default function UsersPage() {
                           <span>{clinic.phone}</span>
                           <span>•</span>
                           <span className="truncate">{clinic.email}</span>
+                          {clinic.daysLeft !== undefined && (
+                            <>
+                              <span>•</span>
+                              <span className={`px-1.5 py-0.25 rounded font-bold uppercase tracking-wider text-[9px] border shrink-0 ${
+                                clinic.subscriptionStatus === "suspended"
+                                  ? "bg-slate-100 text-slate-600 border-slate-200"
+                                  : clinic.daysLeft <= 0
+                                  ? "bg-rose-50 text-rose-700 border-rose-100"
+                                  : clinic.daysLeft <= 7
+                                  ? "bg-amber-50 text-amber-700 border-amber-100 animate-pulse"
+                                  : "bg-emerald-50 text-emerald-700 border-emerald-100"
+                              }`}>
+                                {clinic.subscriptionPlan} • {clinic.daysLeft <= 0 ? "Expired" : `${clinic.daysLeft} Days Left`}
+                              </span>
+                            </>
+                          )}
                         </div>
                       </div>
                     </div>
