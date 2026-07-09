@@ -97,12 +97,12 @@ export default function Sidebar() {
       const data = await res.json();
       if (res.ok && data.success) {
         toast.success("Logged out successfully");
-        
+
         // Dynamically resolve central root domain for redirection
         const currentHost = window.location.host;
         const protocol = window.location.protocol;
         const tenantInfo = resolveTenantInfo(currentHost);
-        
+
         if (tenantInfo.rootDomain === "lvh.me" || tenantInfo.rootDomain === "localhost") {
           const port = window.location.port || "3000";
           window.location.href = `${protocol}//localhost:${port}/admin/login`;
@@ -183,9 +183,8 @@ export default function Sidebar() {
                 <Link
                   href="/admin/academy"
                   onClick={() => setIsOpen(false)}
-                  className={`group relative flex flex-col items-start p-3 bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-950 text-white rounded-xl shadow-sm border border-slate-800 transition-all hover:scale-[1.02] cursor-pointer mb-4 ${
-                    isActive("/admin/academy") ? "ring-2 ring-indigo-500 ring-offset-2 ring-offset-white" : ""
-                  }`}
+                  className={`group relative flex flex-col items-start p-3 bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-950 text-white rounded-xl shadow-sm border border-slate-800 transition-all hover:scale-[1.02] cursor-pointer mb-4 ${isActive("/admin/academy") ? "ring-2 ring-indigo-500 ring-offset-2 ring-offset-white" : ""
+                    }`}
                 >
                   <div className="flex items-center space-x-2">
                     <GraduationCap className="h-4 w-4 text-indigo-400 shrink-0" />
@@ -258,9 +257,8 @@ export default function Sidebar() {
           {hasPageAccess(role, "/admin/academy") && (
             <Link
               href="/admin/academy"
-              className={`group relative flex flex-col items-start p-3 bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-950 text-white rounded-xl shadow-sm border border-slate-800 transition-all hover:scale-[1.02] cursor-pointer mb-4 ${
-                isActive("/admin/academy") ? "ring-2 ring-indigo-500 ring-offset-2 ring-offset-white" : ""
-              }`}
+              className={`group relative flex flex-col items-start p-3 bg-gradient-to-br from-indigo-950 via-slate-900 to-indigo-950 text-white rounded-xl shadow-sm border border-slate-800 transition-all hover:scale-[1.02] cursor-pointer mb-4 ${isActive("/admin/academy") ? "ring-2 ring-indigo-500 ring-offset-2 ring-offset-white" : ""
+                }`}
             >
               <div className="flex items-center space-x-2">
                 <GraduationCap className="h-4 w-4 text-indigo-400 shrink-0" />

@@ -66,7 +66,7 @@ export default function AdminDashboard() {
   };
 
   const recentBookings = dashboardData?.recentAppointments || [];
-  
+
   // Calculate upcoming appointments (pending/confirmed)
   const upcomingReminders = recentBookings
     .filter((a: any) => a.status === "pending" || a.status === "confirmed")
@@ -225,15 +225,14 @@ export default function AdminDashboard() {
                         </span>
                       </div>
                       <span
-                        className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border shrink-0 ${
-                          app.status === "pending"
+                        className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border shrink-0 ${app.status === "pending"
                             ? "bg-amber-50 text-amber-600 border-amber-100"
                             : app.status === "confirmed"
-                            ? "bg-blue-50 text-blue-600 border-blue-100"
-                            : app.status === "completed"
-                            ? "bg-emerald-50 text-emerald-600 border-emerald-100"
-                            : "bg-rose-50 text-rose-600 border-rose-100"
-                        }`}
+                              ? "bg-blue-50 text-blue-600 border-blue-100"
+                              : app.status === "completed"
+                                ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+                                : "bg-rose-50 text-rose-600 border-rose-100"
+                          }`}
                       >
                         {app.status}
                       </span>
@@ -417,9 +416,8 @@ export default function AdminDashboard() {
                             {app.service} • {app.appointmentTime}
                           </p>
                         </div>
-                        <span className={`text-[8.5px] font-bold uppercase px-1.5 rounded border shrink-0 ${
-                          app.status === 'confirmed' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-amber-50 text-amber-600 border-amber-100'
-                        }`}>
+                        <span className={`text-[8.5px] font-bold uppercase px-1.5 rounded border shrink-0 ${app.status === 'confirmed' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-amber-50 text-amber-600 border-amber-100'
+                          }`}>
                           {app.status}
                         </span>
                       </div>
@@ -481,9 +479,9 @@ export default function AdminDashboard() {
                     const timeLabel = isNaN(dateObj.getTime())
                       ? "Just now"
                       : dateObj.toLocaleTimeString("en-US", {
-                          hour: "numeric",
-                          minute: "2-digit",
-                        });
+                        hour: "numeric",
+                        minute: "2-digit",
+                      });
 
                     return (
                       <div key={log._id} className="relative group text-[11px]">

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Hero from "../sections/Hero";
-import Navbar from "../components/navbar"; 
+import Navbar from "../components/navbar";
 import Services from "../sections/Services";
 import Doctors from "../sections/Doctors";
 import Testimonials from "../sections/Testimonials";
@@ -28,7 +28,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function Home() {
   const clinic = await getClinic();
- 
+
   if (!clinic) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
@@ -44,7 +44,7 @@ export default async function Home() {
       </div>
     );
   }
- 
+
   return (
     <div>
       <Navbar clinic={clinic} />

@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { connectDB } from "./mongodb";
 import { Clinic } from "../models/Clinic";
 import { resolveTenantInfo } from "./subdomain";
- 
+
 // 1. Get current clinic slug (subdomain)
 export async function getCurrentClinicSlug(): Promise<string> {
   const headersList = await headers();
@@ -15,7 +15,7 @@ export async function getCurrentClinicSlug(): Promise<string> {
   const host = headersList.get("host") || "";
   return resolveTenantInfo(host).tenantSlug;
 }
- 
+
 // 2. Get current clinic ID
 export async function getCurrentClinicId(): Promise<string | null> {
   const headersList = await headers();
@@ -23,9 +23,9 @@ export async function getCurrentClinicId(): Promise<string | null> {
   const tenantInfo = resolveTenantInfo(host);
   const isRoot = tenantInfo.isRoot;
   const slug = isRoot ? "default" : tenantInfo.tenantSlug;
-  
+
   await connectDB();
-  
+
   // If slug is "default" (root domain access)
   if (isRoot) {
     // Check if we are authenticated and can get clinicId from session cookie directly
@@ -47,7 +47,7 @@ export async function getCurrentClinicId(): Promise<string | null> {
     } catch (err) {
       console.error("[Clinic ID Helper] Token read error:", err);
     }
-    
+
     if (matchedId) {
       console.log(`Host: ${host}`);
       console.log(`Detected Slug: ${slug}`);
@@ -55,7 +55,7 @@ export async function getCurrentClinicId(): Promise<string | null> {
       console.log(`Clinic Match: ${matchSource}`);
       return matchedId;
     }
-    
+
     // Otherwise return the default/first clinic in DB without slug lookup!
     const anyClinic = await Clinic.findOne().lean();
     const resultName = anyClinic ? `${anyClinic.name} (${anyClinic._id})` : "None";
@@ -76,7 +76,7 @@ export async function getCurrentClinicId(): Promise<string | null> {
   console.log(`Clinic Match: ${resultName}`);
   return clinic ? String(clinic._id) : null;
 }
- 
+
 // 3. Get current clinic full details object
 export async function getCurrentClinic() {
   const headersList = await headers();
@@ -84,9 +84,9 @@ export async function getCurrentClinic() {
   const tenantInfo = resolveTenantInfo(host);
   const isRoot = tenantInfo.isRoot;
   const slug = isRoot ? "default" : tenantInfo.tenantSlug;
-  
+
   await connectDB();
-  
+
   let clinic;
   if (isRoot) {
     // Fallback logic for default/root domain: NEVER query by slug!
@@ -95,7 +95,7 @@ export async function getCurrentClinic() {
     // Specific subdomain: find exact match, NEVER fallback
     clinic = await Clinic.findOne({ slug });
   }
-  
+
   const clinicMatch = clinic ? clinic.name : "None";
   console.log(`Host: ${host}`);
   console.log(`Detected Slug: ${slug}`);
@@ -107,7 +107,7 @@ export async function getCurrentClinic() {
     if (!isRoot) {
       return null;
     }
-    
+
     // Fallback for default only
     return {
       id: "fallback-id",
@@ -120,7 +120,7 @@ export async function getCurrentClinic() {
       slug: "default",
     };
   }
- 
+
   const clinicObj = clinic.toObject ? clinic.toObject() : clinic;
   return {
     id: String(clinicObj._id),
@@ -134,7 +134,7 @@ export async function getCurrentClinic() {
     gstNumber: clinicObj.gstNumber || "",
   };
 }
- 
+
 // Re-export getClinic mapping to getCurrentClinic to maintain backwards compatibility
 export async function getClinic() {
   return getCurrentClinic();

@@ -1,200 +1,62 @@
+import { clinic } from "./config/clinic";
+import { branding } from "./config/branding";
+import { contact } from "./config/contact";
+import { timings } from "./config/timings";
+import { seo } from "./config/seo";
+import { navigation } from "./config/navigation";
+import { hero } from "./config/hero";
+import { services } from "./config/services";
+import { doctors } from "./config/doctors";
+import { testimonials } from "./config/testimonials";
+import { booking } from "./config/booking";
+import { footer } from "./config/footer";
+
 export const clinicData = {
   // BASIC INFO
-  clinicName: "AK Sharma Dental Clinic ",
+  clinicName: clinic.name,
 
+  // SEO
   seo: {
-    title: "AK Sharma Dental Clinic NYC",
-    description:
-      "Modern and trusted dental clinic in New York providing complete dental care for your family.",
-  }, 
+    title: seo.title,
+    description: seo.description,
+  },
 
   // CONTACT INFO
   contact: {
-    phone: "(212) 425-0505",
-    email: "contact@citydentalnyc.com",
-    address: "11 Broadway Lobby 4, New York, NY",
+    phone: contact.phone,
+    email: contact.email,
+    address: contact.address,
   },
 
   // CLINIC TIMINGS
   timings: {
-    days: "Mon - Sat",
-    hours: "9AM - 8PM",
+    days: timings.days,
+    hours: timings.hours,
   },
 
   // THEME
   theme: {
-    primaryColor: "blue",
+    primaryColor: branding.primaryColor,
   },
 
   // NAVIGATION
-  navigation: [
-    {
-      label: "Home",
-      href: "/#home",
-    },
-
-    {
-      label: "Services",
-      href: "/#services",
-    },
-
-    {
-      label: "Doctors",
-      href: "/#doctors",
-    },
-
-    {
-      label: "Testimonials",
-      href: "/#testimonials",
-    },
-
-    {
-      label: "Contact",
-      href: "/#contact",
-    },
-  ],
+  navigation,
 
   // HERO SECTION
-  hero: {
-    title: "Trusted Dental Care in NYC",
-
-    subtitle:
-      "Modern dental services for your entire family with advanced technology and experienced doctors.",
-
-    buttonText: "Book Appointment",
-
-    stats: [
-      {
-        value: "5000+",
-        label: "Happy Patients",
-      },
-
-      {
-        value: "15+",
-        label: "Years Experience",
-      },
-
-      {
-        value: "4.9★",
-        label: "Google Rating",
-      },
-    ],
-  },
+  hero,
 
   // SERVICES
-  services: [
-    {
-      title: "Dental Implants",
-
-      description:
-        "Permanent and natural-looking tooth replacement solutions.",
-
-      icon: "🦷",
-    },
-
-    {
-      title: "Teeth Whitening",
-
-      description:
-        "Professional whitening treatments for a brighter smile.",
-
-      icon: "✨",
-    },
-
-    {
-      title: "Root Canal",
-
-      description:
-        "Safe and painless root canal treatments using modern technology.",
-
-      icon: "💉",
-    },
-
-    {
-      title: "Braces & Aligners",
-
-      description:
-        "Straighten your teeth with modern orthodontic solutions.",
-
-      icon: "😁",
-    },
-  ],
+  services,
 
   // DOCTORS
-  doctors: [
-    {
-      name: "Dr. Sarah Johnson",
-
-      role: "Cosmetic Dentist",
-
-      image:
-        "https://images.unsplash.com/photo-1559839734-2b71ea197ec2?q=80&w=1200&auto=format&fit=crop",
-    },
-
-    {
-      name: "Dr. Michael Lee",
-
-      role: "Orthodontist",
-
-      image:
-        "https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?q=80&w=1200&auto=format&fit=crop",
-    },
-
-    {
-      name: "Dr. Emily Carter",
-
-      role: "Dental Surgeon",
-
-      image:
-        "https://images.unsplash.com/photo-1594824476967-48c8b964273f?q=80&w=1200&auto=format&fit=crop",
-    },
-  ],
+  doctors,
 
   // TESTIMONIALS
-  testimonials: [
-    {
-      name: "Jennifer Adams",
-
-      review:
-        "The doctors were extremely professional and the clinic atmosphere was very comfortable. Highly recommended!",
-
-      rating: 5,
-    },
-
-    {
-      name: "Robert Williams",
-
-      review:
-        "I had an amazing experience with the dental implant treatment. Everything was painless and smooth.",
-
-      rating: 5,
-    },
-
-    {
-      name: "Sophia Brown",
-
-      review:
-        "Very clean clinic with friendly staff and modern equipment. Best dental experience I’ve had.",
-
-      rating: 5,
-    },
-  ],
+  testimonials,
 
   // BOOKING SERVICES
-  bookingServices: [
-    "Dental Cleaning",
-    "Root Canal",
-    "Teeth Whitening",
-    "Dental Implants",
-    "Braces & Aligners",
-  ],
+  bookingServices: booking,
 
   // FOOTER
-  footer: {
-    description:
-      "Providing trusted and advanced dental care for families in New York.",
-
-    copyright:
-      "© 2026 City Dental Group. All rights reserved.",
-  },
+  footer,
 };

@@ -20,7 +20,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     setMounted(true);
-    
+
     // Check if token callback is present in query parameters
     const searchParams = new URLSearchParams(window.location.search);
     const tokenParam = searchParams.get("token");
@@ -93,7 +93,7 @@ export default function LoginPage() {
       }
 
       toast.success("Welcome back! Redirecting...");
-      
+
       // Subdomain-aware redirection
       const user = data.user;
       const token = data.token;
@@ -101,14 +101,14 @@ export default function LoginPage() {
         const currentHost = window.location.host;
         const currentSlug = getSubdomainSlug(currentHost);
         const isRoot = isRootHost(currentHost);
-        
+
         console.log({
           currentHost,
           currentSlug,
           isRoot,
           clinicSlug: user.clinicSlug
         });
-        
+
         // If we logged in to a subdomain that is different from our clinic slug (and not on root/Vercel host)
         if (!isRoot && user.clinicSlug !== currentSlug) {
           // For local development on localhost, 127.0.0.1, or lvh.me, redirect to the wildcard lvh.me loopback domain so subdomains work out of the box
@@ -133,7 +133,7 @@ export default function LoginPage() {
           if (currentSlug !== "default") {
             mainDomain = parts.slice(1).join(".");
           }
-          
+
           const protocol = window.location.protocol;
           window.location.href = `${protocol}//${user.clinicSlug}.${mainDomain}/admin/login?token=${token}`;
           return;
@@ -249,7 +249,7 @@ export default function LoginPage() {
             <span>{loading ? "Signing in..." : "Sign In"}</span>
           </button>
         </form>
- 
+
         {/* Link to register page */}
         {clinicSlug === "default" && (
           <div className="text-center text-[11px] text-slate-400">
