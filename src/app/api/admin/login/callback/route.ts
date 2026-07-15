@@ -53,12 +53,22 @@ export async function POST(req: Request) {
       message: "Session created successfully.",
     });
 
+    // 1. Clear any existing host-only cookie on this specific subdomain host to prevent duplicate cookie domains
+    response.cookies.set("admin_token", "", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 0,
+    });
+
+    // 2. Set the cookie on the resolved domain (e.g. .dental.launchstack.in or .lvh.me) for sharing across subdomains
     response.cookies.set("admin_token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      domain: tenantInfo.cookieDomain, // Share across *.dental.launchstack.in
+      domain: tenantInfo.cookieDomain,
       maxAge: 60 * 60 * 24, // 24 hours
     });
 

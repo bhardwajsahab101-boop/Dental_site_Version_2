@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
+import { resolveTenantInfo } from "../../../lib/subdomain";
 import { Eye, EyeOff, Loader2, Lock, Mail } from "lucide-react";
 
 export default function LoginPage() {
@@ -115,7 +116,8 @@ export default function LoginPage() {
         }
 
         // Production
-        const rootDomain = "dental.launchstack.in";
+        const tenantInfo = resolveTenantInfo(currentHost);
+        const rootDomain = tenantInfo.rootDomain;
 
         window.location.href =
           `${window.location.protocol}//${user.clinicSlug}.${rootDomain}/admin/login?token=${token}`;
