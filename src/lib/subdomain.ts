@@ -3,11 +3,12 @@
  * Falls back to "dental.launchstack.in" if not set.
  */
 export function getRootDomain(): string {
-  return (
+  const domain = (
     process.env.NEXT_PUBLIC_ROOT_DOMAIN ||
     process.env.ROOT_DOMAIN ||
     "dental.launchstack.in"
   );
+  return domain.trim().toLowerCase();
 }
 
 export interface TenantInfo {
