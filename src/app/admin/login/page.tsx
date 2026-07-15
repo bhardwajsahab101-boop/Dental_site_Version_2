@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import { Eye, EyeOff, Loader2, Lock, Mail } from "lucide-react";
-import { getSubdomainSlug, isRootHost } from "../../../lib/subdomain";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -97,50 +96,34 @@ export default function LoginPage() {
       // Subdomain-aware redirection
       const user = data.user;
       const token = data.token;
-      if (user && user.role !== "admin" && user.clinicSlug) {
-        const currentHost = window.location.host;
-        const currentSlug = getSubdomainSlug(currentHost);
-        const isRoot = isRootHost(currentHost);
 
-        console.log({
-          currentHost,
-          currentSlug,
-          isRoot,
-          clinicSlug: user.clinicSlug
-        });
+      if (user && user.role !== "admin") {
+        const currentHost = window.location.hostname.toLowerCase();
 
-        // If we logged in to a subdomain that is different from our clinic slug (and not on root/Vercel host)
-        if (!isRoot && user.clinicSlug !== currentSlug) {
-          // For local development on localhost, 127.0.0.1, or lvh.me, redirect to the wildcard lvh.me loopback domain so subdomains work out of the box
-          if (
-            currentHost.startsWith("localhost") ||
-            currentHost.startsWith("127.0.0.1") ||
-            currentHost.includes("lvh.me")
-          ) {
-            const port = currentHost.split(":")[1] || "3000";
-            window.location.href = `${window.location.protocol}//${user.clinicSlug}.lvh.me:${port}/admin/login?token=${token}`;
-            return;
-          }
+        // Local development
+        if (
+          currentHost === "localhost" ||
+          currentHost === "127.0.0.1" ||
+          currentHost.endsWith(".lvh.me")
+        ) {
+          const port = window.location.port || "3000";
 
-          // If our clinic slug is default and we are on the main domain (default slug), we can stay
-          if (user.clinicSlug === "default" && currentSlug === "default") {
-            window.location.href = "/admin";
-            return;
-          }
+          window.location.href =
+            `${window.location.protocol}//${user.clinicSlug}.lvh.me:${port}/admin/login?token=${token}`;
 
-          const parts = currentHost.split(":")[0].toLowerCase().split(".");
-          let mainDomain = currentHost;
-          if (currentSlug !== "default") {
-            mainDomain = parts.slice(1).join(".");
-          }
-
-          const protocol = window.location.protocol;
-          window.location.href = `${protocol}//${user.clinicSlug}.${mainDomain}/admin/login?token=${token}`;
           return;
         }
+
+        // Production
+        const rootDomain = "dental.launchstack.in";
+
+        window.location.href =
+          `${window.location.protocol}//${user.clinicSlug}.${rootDomain}/admin/login?token=${token}`;
+
+        return;
       }
 
-      // Default redirect to current domain admin dashboard
+      // Platform admin
       window.location.href = "/admin";
     } catch (err: unknown) {
       console.error(err);
