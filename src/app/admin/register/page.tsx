@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import { Eye, EyeOff, Loader2, Lock, Mail, Building, Phone, MapPin, User } from "lucide-react";
-import { resolveTenantInfo } from "../../../lib/subdomain";
  
 export default function RegisterPage() {
   // Clinic Fields
@@ -95,15 +94,7 @@ export default function RegisterPage() {
   }
 
   if (registeredSlug) {
-    const localUrl = `${window.location.protocol}//${registeredSlug}.lvh.me:${window.location.port || "3000"}/admin/login`;
-    const currentHost = window.location.host;
-    const tenantInfo = resolveTenantInfo(currentHost);
-    const isVercel = tenantInfo.rootDomain.endsWith(".vercel.app") || tenantInfo.rootDomain === "vercel.app";
-    
-    let prodUrl = `${window.location.protocol}//${registeredSlug}.${tenantInfo.rootDomain}/admin/login`;
-    if (isVercel) {
-      prodUrl = `${window.location.protocol}//${currentHost}/admin/login`;
-    }
+    const loginUrl = `${window.location.protocol}//${window.location.host}/admin/login`;
 
     return (
       <div className="flex items-center justify-center py-6">
@@ -114,42 +105,24 @@ export default function RegisterPage() {
             </div>
             <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">Clinic Registered!</h1>
             <p className="text-slate-500 text-xs font-semibold">
-              Clinic "{clinicName}" was successfully set up with slug <code className="bg-slate-100 px-1.5 py-0.5 rounded font-mono text-indigo-650 font-bold">{registeredSlug}</code>
+              Clinic "{clinicName}" was successfully set up! You can now access your dashboard using the URL below.
             </p>
           </div>
 
           <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 space-y-4">
             <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider block">
-              🔗 Access URLs
+              🔗 Access URL
             </h3>
 
             <div className="space-y-3">
-              {/* Local Dev URL */}
               <div className="space-y-1">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Local Development URL</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Login URL</span>
                 <div className="flex items-center justify-between gap-2 bg-white border border-slate-200 rounded-lg p-2 text-xs font-semibold">
-                  <span className="font-mono text-slate-600 truncate">{localUrl}</span>
+                  <span className="font-mono text-slate-600 truncate">{loginUrl}</span>
                   <button
                     onClick={() => {
-                      navigator.clipboard.writeText(localUrl);
-                      toast.success("Local URL copied!");
-                    }}
-                    className="text-[10px] bg-slate-900 hover:bg-slate-800 text-white font-bold px-2 py-1 rounded transition-colors shrink-0 cursor-pointer"
-                  >
-                    Copy
-                  </button>
-                </div>
-              </div>
-
-              {/* Prod URL */}
-              <div className="space-y-1">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Production URL</span>
-                <div className="flex items-center justify-between gap-2 bg-white border border-slate-200 rounded-lg p-2 text-xs font-semibold">
-                  <span className="font-mono text-slate-600 truncate">{prodUrl}</span>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(prodUrl);
-                      toast.success("Production URL copied!");
+                      navigator.clipboard.writeText(loginUrl);
+                      toast.success("Login URL copied!");
                     }}
                     className="text-[10px] bg-slate-900 hover:bg-slate-800 text-white font-bold px-2 py-1 rounded transition-colors shrink-0 cursor-pointer"
                   >
@@ -162,10 +135,10 @@ export default function RegisterPage() {
 
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
             <a
-              href={localUrl}
+              href={loginUrl}
               className="flex-1 inline-flex items-center justify-center bg-indigo-650 hover:bg-indigo-700 text-white py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm text-center cursor-pointer"
             >
-              Open Login (Local Dev)
+              Open Login
             </a>
             <button
               onClick={() => {

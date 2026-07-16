@@ -3,7 +3,6 @@ import { signJWT, hashPassword } from "../../../../lib/auth";
 import { connectDB } from "../../../../lib/mongodb";
 import { User } from "../../../../models/User";
 import { Clinic } from "../../../../models/Clinic";
-import { resolveTenantInfo } from "../../../../lib/subdomain";
  
 export async function POST(req: Request) {
   try {
@@ -121,42 +120,22 @@ export async function POST(req: Request) {
     const response = NextResponse.json({
       success: true,
       message: "Logged in successfully",
-      token, // Include the token for cross-subdomain handoff
       user: {
         name: user.name,
         email: user.email,
         role: user.role,
-        clinicSlug,
       },
     });
 
-    // Resolve cookie domain for subdomain sharing
-    const hostHeader = req.headers.get("host") || "";
-    const tenantInfo = resolveTenantInfo(hostHeader);
-    const cookieDomain = tenantInfo.cookieDomain;
- 
-    // Set HTTP-only secure cookie directly ONLY for platform admins (role === "admin")
-    // Clinic users will establish their session cookie via the subdomain callback route to avoid duplicate cookies
-    if (user.role === "admin") {
-      response.cookies.set("admin_token", token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        domain: cookieDomain,
-        maxAge: 86400, // 1 day
-      });
-    } else {
-      // Clear any existing cookie on this root host domain to prevent cross-tenant duplication
-      response.cookies.set("admin_token", "", {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: 0,
-      });
-    }
- 
+    // Set HTTP-only secure host-only cookie on current domain
+    response.cookies.set("admin_token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 86400, // 1 day
+    });
+
     return response;
   } catch (error) {
     console.error("Login API error:", error);

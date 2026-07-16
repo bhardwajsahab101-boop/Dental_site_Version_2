@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
-import { resolveTenantInfo } from "../../../lib/subdomain";
 import { Eye, EyeOff, Loader2, Lock, Mail } from "lucide-react";
 
 export default function LoginPage() {
@@ -16,41 +15,9 @@ export default function LoginPage() {
   const [clinicName, setClinicName] = useState("");
   const [clinicLogo, setClinicLogo] = useState("");
   const [clinicSlug, setClinicSlug] = useState("default");
-  const [callbackLoading, setCallbackLoading] = useState(false);
 
   useEffect(() => {
     setMounted(true);
-
-    // Check if token callback is present in query parameters
-    const searchParams = new URLSearchParams(window.location.search);
-    const tokenParam = searchParams.get("token");
-
-    if (tokenParam) {
-      setCallbackLoading(true);
-      async function handleTokenCallback() {
-        try {
-          const res = await fetch("/api/admin/login/callback", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ token: tokenParam }),
-          });
-          const data = await res.json();
-          if (res.ok && data.success) {
-            toast.success("Welcome! Redirecting...");
-            window.location.href = "/admin";
-          } else {
-            throw new Error(data.message || "Failed to set login session");
-          }
-        } catch (err: any) {
-          toast.error(err.message || "Session initialization failed");
-          setCallbackLoading(false);
-        }
-      }
-      handleTokenCallback();
-      return;
-    }
 
     async function loadClinic() {
       try {
@@ -94,38 +61,7 @@ export default function LoginPage() {
 
       toast.success("Welcome back! Redirecting...");
 
-      // Subdomain-aware redirection
-      const user = data.user;
-      const token = data.token;
-
-      if (user && user.role !== "admin") {
-        const currentHost = window.location.hostname.toLowerCase();
-
-        // Local development
-        if (
-          currentHost === "localhost" ||
-          currentHost === "127.0.0.1" ||
-          currentHost.endsWith(".lvh.me")
-        ) {
-          const port = window.location.port || "3000";
-
-          window.location.href =
-            `${window.location.protocol}//${user.clinicSlug}.lvh.me:${port}/admin/login?token=${token}`;
-
-          return;
-        }
-
-        // Production
-        const tenantInfo = resolveTenantInfo(currentHost);
-        const rootDomain = tenantInfo.rootDomain;
-
-        window.location.href =
-          `${window.location.protocol}//${user.clinicSlug}.${rootDomain}/admin/login?token=${token}`;
-
-        return;
-      }
-
-      // Platform admin
+      // Redirect directly to the admin dashboard
       window.location.href = "/admin";
     } catch (err: unknown) {
       console.error(err);
@@ -136,18 +72,6 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
-
-  if (callbackLoading) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="flex flex-col items-center space-y-2">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-900" />
-          <p className="text-slate-400 text-xs font-semibold">Setting up your session...</p>
-        </div>
-      </div>
-    );
-  }
-
   if (!mounted) {
     return null;
   }

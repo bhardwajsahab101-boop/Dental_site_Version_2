@@ -3,7 +3,6 @@ import { connectDB } from "../../../lib/mongodb";
 import { ContactMessage } from "../../../models/ContactMessage";
 import { Clinic } from "../../../models/Clinic";
 import { notifyContactFormSubmitted } from "../../../lib/notifications";
-import { getSubdomainSlug, isRootHost } from "../../../lib/subdomain";
  
 // Simple HTML escaping to sanitize string inputs
 function sanitizeString(str: string): string {
@@ -24,25 +23,8 @@ export async function POST(req: Request) {
   try {
     await connectDB();
  
-    // Resolve clinicId from host header
-    const host = req.headers.get("host") || "";
-    const isRoot = isRootHost(host);
-    const slug = isRoot ? "default" : getSubdomainSlug(host);
-    
-    let clinic = null;
-    if (!isRoot) {
-      clinic = await Clinic.findOne({ slug: slug.toLowerCase() });
-    }
-    if (!clinic) {
-      clinic = await Clinic.findOne();
-    }
- 
-    const clinicMatch = clinic ? `${clinic.name} (${clinic._id})` : "None";
-    console.log(`Host: ${host}`);
-    console.log(`Detected Slug: ${slug}`);
-    console.log(`Is Root Domain: ${isRoot}`);
-    console.log(`Clinic Match: ${clinicMatch}`);
- 
+    // Resolve clinicId from database
+    const clinic = await Clinic.findOne();
     const clinicId = clinic?._id || undefined;
  
     const body = await req.json();

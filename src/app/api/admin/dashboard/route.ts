@@ -14,12 +14,9 @@ export async function GET() {
     // Log the user context for authorization tracing
     let userId = undefined;
     let role = undefined;
-    let clinicSlug = undefined;
-    let currentHost = "";
-    let detectedSlug = "default";
 
     try {
-      const { cookies, headers } = await import("next/headers");
+      const { cookies } = await import("next/headers");
       const cookieStore = await cookies();
       const token = cookieStore.get("admin_token")?.value;
       if (token) {
@@ -29,13 +26,8 @@ export async function GET() {
         if (verified) {
           userId = verified.userId;
           role = verified.role;
-          clinicSlug = verified.clinicSlug;
         }
       }
-      const headersList = await headers();
-      currentHost = headersList.get("host") || "";
-      const { getSubdomainSlug } = await import("../../../../lib/subdomain");
-      detectedSlug = getSubdomainSlug(currentHost);
     } catch (err) {
       console.error("Error gathering logs for dashboard route:", err);
     }
@@ -44,9 +36,6 @@ export async function GET() {
       userId,
       role,
       clinicId,
-      clinicSlug,
-      currentHost,
-      detectedSlug
     });
 
     if (!clinicId) {

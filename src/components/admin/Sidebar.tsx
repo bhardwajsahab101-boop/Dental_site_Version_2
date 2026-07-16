@@ -19,7 +19,6 @@ import {
   CreditCard
 } from "lucide-react";
 import { hasPageAccess } from "../../lib/permissions";
-import { resolveTenantInfo } from "../../lib/subdomain";
 
 const ToothIcon = () => (
   <svg className="h-5 w-5 text-violet-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -98,17 +97,7 @@ export default function Sidebar() {
       if (res.ok && data.success) {
         toast.success("Logged out successfully");
 
-        // Dynamically resolve central root domain for redirection
-        const currentHost = window.location.host;
-        const protocol = window.location.protocol;
-        const tenantInfo = resolveTenantInfo(currentHost);
-
-        if (tenantInfo.rootDomain === "lvh.me" || tenantInfo.rootDomain === "localhost") {
-          const port = window.location.port || "3000";
-          window.location.href = `${protocol}//localhost:${port}/admin/login`;
-        } else {
-          window.location.href = `${protocol}//${tenantInfo.rootDomain}/admin/login`;
-        }
+        window.location.href = "/admin/login";
       } else {
         throw new Error(data.message || "Failed to log out");
       }

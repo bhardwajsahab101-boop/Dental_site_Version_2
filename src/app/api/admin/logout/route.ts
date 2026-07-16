@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { resolveTenantInfo } from "../../../../lib/subdomain";
 
 export async function POST(req: Request) {
   try {
@@ -8,18 +7,12 @@ export async function POST(req: Request) {
       message: "Logged out successfully",
     });
 
-    // Resolve cookie domain for subdomain sharing
-    const hostHeader = req.headers.get("host") || "";
-    const tenantInfo = resolveTenantInfo(hostHeader);
-    const cookieDomain = tenantInfo.cookieDomain;
-
-    // Clear HTTP-only cookie by setting maxAge to 0 on the correct wildcard domain
+    // Clear HTTP-only admin_token cookie on the host domain
     response.cookies.set("admin_token", "", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      domain: cookieDomain,
       maxAge: 0,
     });
 
