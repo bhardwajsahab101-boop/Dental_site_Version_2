@@ -1,62 +1,84 @@
 import type { Metadata } from "next";
-import Hero from "../sections/Hero";
-import Navbar from "../components/navbar";
-import Services from "../sections/Services";
-import Doctors from "../sections/Doctors";
-import Testimonials from "../sections/Testimonials";
-import Contact from "../sections/Contact";
-import Footer from "../sections/Footer";
+import Navbar from "../components/public/Navbar";
+import Hero from "../components/public/Hero";
+import TrustSection from "../components/public/TrustSection";
+import TreatmentsPreview from "../components/public/TreatmentsPreview";
+import DoctorSection from "../components/public/DoctorSection";
+import GallerySection from "../components/public/GallerySection";
+import ReviewsSection from "../components/public/ReviewsSection";
+import FaqSection from "../components/public/FaqSection";
+import CtaBanner from "../components/public/CtaBanner";
+import Footer from "../components/public/Footer";
+import JsonLd from "../components/public/JsonLd";
 import { getClinic } from "../lib/clinic";
+import { getWebsiteContent } from "../lib/content";
+import { connectDB } from "../lib/mongodb";
+import { GalleryItem } from "../models/GalleryItem";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata(): Promise<Metadata> {
   try {
     const clinic = await getClinic();
+    const content = await getWebsiteContent();
+    const clinicName = clinic?.name || "Anil Sharma Dental Hospital";
+
     return {
-      title: clinic?.clinicName || "AK Sharma Dental Clinic",
-      description: `Welcome to ${clinic?.clinicName || "AK Sharma Dental Clinic"}. Modern and trusted dental care for your family.`,
+      title: content?.seo?.metaTitle || `${clinicName} | Gentle, Professional Dental Care`,
+      description:
+        content?.seo?.metaDescription ||
+        `Welcome to ${clinicName}. Providing comprehensive, gentle dental care, root canal treatments, crowns, scaling, and preventive checkups.`,
+      keywords: content?.seo?.keywords || "dental clinic, dentist, root canal, teeth cleaning",
     };
-  } catch (error) {
-    console.error("generateMetadata error:", error);
+  } catch (err) {
     return {
-      title: "AK Sharma Dental Clinic",
-      description: "Modern and trusted dental clinic providing complete dental care for your family.",
+      title: "Anil Sharma Dental Hospital | Gentle, Professional Dental Care",
+      description: "Comprehensive oral healthcare and modern dental clinic.",
     };
   }
 }
 
 export default async function Home() {
+  await connectDB();
   const clinic = await getClinic();
+  const content = await getWebsiteContent();
 
-  if (!clinic) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-full max-w-sm bg-white rounded-2xl border border-slate-100 shadow-xl p-8 space-y-6">
-          <div className="inline-flex items-center justify-center h-12 w-12 bg-rose-50 text-rose-500 rounded-xl text-xl font-bold">
-            🦷
-          </div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Clinic Not Found</h1>
-          <p className="text-slate-400 text-xs font-semibold">
-            The requested clinic is invalid or does not exist. Please check the domain slug and try again.
-          </p>
-        </div>
-      </div>
-    );
+  // Fetch featured gallery items from database if available
+  let galleryItems: any[] = [];
+  try {
+    if (clinic?.id && clinic.id !== "fallback-id") {
+      galleryItems = await GalleryItem.find({ clinicId: clinic.id, isFeatured: true })
+        .sort({ displayOrder: 1, createdAt: -1 })
+        .lean();
+    }
+  } catch (e) {
+    console.error("Error fetching homepage gallery items:", e);
   }
 
+  const formattedGallery = galleryItems.map((item: any) => ({
+    id: String(item._id),
+    title: item.title,
+    alt: item.alt,
+    imageUrl: item.imageUrl,
+    category: item.category,
+    isFeatured: item.isFeatured,
+  }));
+
   return (
-    <div>
+    <div className="min-h-screen flex flex-col bg-[#F8FAFC]">
+      <JsonLd clinic={clinic} content={content} />
       <Navbar clinic={clinic} />
-      <main>
-        <Hero clinic={clinic} />
-        <Services clinic={clinic} />
-        <Doctors clinic={clinic} />
-        <Testimonials clinic={clinic} />
-        <Contact clinic={clinic} />
-        <Footer clinic={clinic} />
+      <main className="flex-1">
+        <Hero clinic={clinic} content={content} />
+        <TrustSection clinic={clinic} content={content} />
+        <TreatmentsPreview />
+        <DoctorSection clinic={clinic} content={content} />
+        <GallerySection initialPhotos={formattedGallery.length > 0 ? formattedGallery : undefined} />
+        <ReviewsSection clinic={clinic} />
+        <FaqSection content={content} />
+        <CtaBanner clinic={clinic} />
       </main>
+      <Footer clinic={clinic} content={content} />
     </div>
   );
 }
-

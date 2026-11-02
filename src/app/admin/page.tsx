@@ -159,6 +159,9 @@ export default function AdminDashboard() {
         <DashboardStatsCards
           totalPatients={stats.totalPatients}
           totalAppointments={stats.totalAppointments}
+          totalPendingAppointments={stats.totalPendingAppointments}
+          totalConfirmedAppointments={stats.totalConfirmedAppointments}
+          newEnquiries={stats.newEnquiries}
           totalTreatments={stats.totalTreatments}
           totalRevenue={stats.totalRevenue}
           outstandingRevenue={stats.outstandingRevenue}

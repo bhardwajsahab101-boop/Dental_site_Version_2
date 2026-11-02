@@ -7,11 +7,16 @@ import { Save, Building, Phone, Mail, MapPin, Hash, Loader2, FileSpreadsheet, Pl
 export default function ClinicSettingsPage() {
   const [slug, setSlug] = useState("");
   const [name, setName] = useState("");
+  const [alternateName, setAlternateName] = useState("");
   const [logo, setLogo] = useState("");
   const [phone, setPhone] = useState("");
+  const [whatsappPhone, setWhatsappPhone] = useState("");
   const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
   const [gstNumber, setGstNumber] = useState("");
+  const [googleMapsUrl, setGoogleMapsUrl] = useState("");
+  const [googleBusinessUrl, setGoogleBusinessUrl] = useState("");
+  const [emergencyPhone, setEmergencyPhone] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -61,11 +66,16 @@ export default function ClinicSettingsPage() {
       if (data.success && data.settings) {
         setSlug(data.settings.slug || "");
         setName(data.settings.name || "");
+        setAlternateName(data.settings.alternateName || "");
         setLogo(data.settings.logo || "");
         setPhone(data.settings.phone || "");
+        setWhatsappPhone(data.settings.whatsappPhone || "");
         setEmail(data.settings.email || "");
         setAddress(data.settings.address || "");
         setGstNumber(data.settings.gstNumber || "");
+        setGoogleMapsUrl(data.settings.googleMapsUrl || "");
+        setGoogleBusinessUrl(data.settings.googleBusinessUrl || "");
+        setEmergencyPhone(data.settings.emergencyPhone || "");
       } else {
         throw new Error(data.message || "Failed to load clinic settings");
       }
@@ -106,11 +116,16 @@ export default function ClinicSettingsPage() {
         body: JSON.stringify({
           slug: slug.trim().toLowerCase(),
           name: name.trim(),
+          alternateName: alternateName.trim(),
           logo: logo.trim(),
           phone: phone.trim(),
+          whatsappPhone: whatsappPhone.trim(),
           email: email.trim(),
           address: address.trim(),
           gstNumber: gstNumber.trim(),
+          googleMapsUrl: googleMapsUrl.trim(),
+          googleBusinessUrl: googleBusinessUrl.trim(),
+          emergencyPhone: emergencyPhone.trim(),
         }),
       });
 
@@ -341,14 +356,29 @@ export default function ClinicSettingsPage() {
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1">
                   <Building className="h-3 w-3" />
-                  <span>Clinic Name</span>
+                  <span>Official Clinic Name</span>
                 </label>
                 <input
                   type="text"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Apex Dental Clinic"
+                  placeholder="e.g. Anil Sharma Dental Hospital"
+                  className="block w-full px-3 py-2 text-xs bg-slate-50/50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700"
+                />
+              </div>
+
+              {/* Alternate Name / Signboard */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1">
+                  <Building className="h-3 w-3" />
+                  <span>Alternate / Signboard Name</span>
+                </label>
+                <input
+                  type="text"
+                  value={alternateName}
+                  onChange={(e) => setAlternateName(e.target.value)}
+                  placeholder="e.g. A.K. Sharma Dental Hospital"
                   className="block w-full px-3 py-2 text-xs bg-slate-50/50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700"
                 />
               </div>
@@ -405,19 +435,64 @@ export default function ClinicSettingsPage() {
                 />
               </div>
 
+              {/* WhatsApp Phone */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1">
+                  <span>💬</span>
+                  <span>WhatsApp Contact Number</span>
+                </label>
+                <input
+                  type="text"
+                  value={whatsappPhone}
+                  onChange={(e) => setWhatsappPhone(e.target.value)}
+                  placeholder="e.g. +91 98765 43210"
+                  className="block w-full px-3 py-2 text-xs bg-slate-50/50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700 font-mono"
+                />
+              </div>
+
               {/* Email */}
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1">
                   <Mail className="h-3 w-3" />
-                  <span>Invoice Email</span>
+                  <span>Invoice / Reception Email</span>
                 </label>
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="e.g. billing@clinic.com"
+                  placeholder="e.g. contact@clinic.com"
                   className="block w-full px-3 py-2 text-xs bg-slate-50/50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700"
+                />
+              </div>
+
+              {/* Google Maps Directions URL */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1">
+                  <span>🗺️</span>
+                  <span>Google Maps Directions URL</span>
+                </label>
+                <input
+                  type="text"
+                  value={googleMapsUrl}
+                  onChange={(e) => setGoogleMapsUrl(e.target.value)}
+                  placeholder="https://maps.google.com/?q=..."
+                  className="block w-full px-3 py-2 text-xs bg-slate-50/50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700 font-mono"
+                />
+              </div>
+
+              {/* Google Business Profile URL */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1">
+                  <span>⭐</span>
+                  <span>Google Business Review Page URL</span>
+                </label>
+                <input
+                  type="text"
+                  value={googleBusinessUrl}
+                  onChange={(e) => setGoogleBusinessUrl(e.target.value)}
+                  placeholder="https://g.page/r/.../review"
+                  className="block w-full px-3 py-2 text-xs bg-slate-50/50 border border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 outline-none transition-all text-slate-700 font-mono"
                 />
               </div>
 

@@ -16,7 +16,10 @@ import {
   Users,
   Coins,
   GraduationCap,
-  CreditCard
+  CreditCard,
+  Globe,
+  Image as ImageIcon,
+  MessageSquare
 } from "lucide-react";
 import { hasPageAccess } from "../../lib/permissions";
 
@@ -58,11 +61,13 @@ export default function Sidebar() {
   const navigation = [
     { name: "Dashboard", href: "/admin", icon: LayoutDashboard },
     { name: "Appointments", href: "/admin/appointments", icon: Calendar },
+    { name: "Enquiries & Messages", href: "/admin/messages", icon: MessageSquare },
+    { name: "Website CMS", href: "/admin/content", icon: Globe },
+    { name: "Clinic Gallery", href: "/admin/gallery", icon: ImageIcon },
+    { name: "Patients", href: "/admin/patients", icon: Users },
     { name: "Calendar", href: "/admin/calendar", icon: Calendar },
-    { name: "Finance", href: "/admin/finance", icon: Coins },
+    { name: "Finance & Billing", href: "/admin/finance", icon: Coins },
     { name: "Analytics", href: "/admin/analytics", icon: TrendingUp },
-    { name: "Messages", href: "/admin/messages", icon: Activity },
-    { name: "Patients", href: "/admin/patients", icon: LogOut },
     { name: "Staff Management", href: "/admin/users", icon: Users },
     { name: "Settings", href: "/admin/settings", icon: Settings },
     { name: "Subscriptions", href: "/admin/subscriptions", icon: CreditCard },

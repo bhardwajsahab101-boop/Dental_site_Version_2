@@ -1,16 +1,18 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
- 
+
 export interface IContactMessage extends Document {
   clinicId: mongoose.Types.ObjectId;
   fullName: string;
   email: string;
+  phone?: string;
   message: string;
-  status: "unread" | "read" | "replied";
+  status: "unread" | "read" | "replied" | "archived";
+  followUpNotes?: string;
   updatedBy?: mongoose.Types.ObjectId | null;
   createdAt: Date;
   updatedAt: Date;
 }
- 
+
 const contactMessageSchema = new Schema<IContactMessage>(
   {
     clinicId: {
@@ -29,14 +31,23 @@ const contactMessageSchema = new Schema<IContactMessage>(
       required: true,
       trim: true,
     },
+    phone: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     message: {
       type: String,
       required: true,
     },
     status: {
       type: String,
-      enum: ["unread", "read", "replied"],
+      enum: ["unread", "read", "replied", "archived"],
       default: "unread",
+    },
+    followUpNotes: {
+      type: String,
+      default: "",
     },
     updatedBy: {
       type: Schema.Types.ObjectId,
@@ -48,14 +59,7 @@ const contactMessageSchema = new Schema<IContactMessage>(
     timestamps: true,
   }
 );
- 
-// Pre-save hook to prevent orphaned documents and cross-tenant access leaks
-contactMessageSchema.pre("save", function () {
-  if (!this.clinicId) {
-    throw new Error("clinicId is required for ContactMessage");
-  }
-});
- 
+
 export const ContactMessage =
   (mongoose.models.ContactMessage as Model<IContactMessage>) ||
   mongoose.model<IContactMessage>("ContactMessage", contactMessageSchema);

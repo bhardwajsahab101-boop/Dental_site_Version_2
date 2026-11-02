@@ -3,6 +3,7 @@ import { connectDB } from "../../../../lib/mongodb";
 import { Patient } from "../../../../models/Patient";
 import { Appointment } from "../../../../models/Appointment";
 import { Treatment } from "../../../../models/treatment";
+import { ContactMessage } from "../../../../models/ContactMessage";
 import { getCurrentClinic } from "../../../../lib/auth";
  
 export const dynamic = "force-dynamic";
@@ -56,6 +57,14 @@ export async function GET() {
     const totalPendingAppointments = await Appointment.countDocuments({
       ...clinicFilter,
       status: { $in: ["requested", "pending"] } as any,
+    });
+    const totalConfirmedAppointments = await Appointment.countDocuments({
+      ...clinicFilter,
+      status: "confirmed",
+    });
+    const newEnquiries = await ContactMessage.countDocuments({
+      clinicId,
+      status: "unread",
     });
  
     // 2. Today's Appointments & Schedule
@@ -272,6 +281,8 @@ export async function GET() {
         todayAppointments: todayAppointmentsCount,
         revenueToday,
         totalPendingAppointments,
+        totalConfirmedAppointments,
+        newEnquiries,
         revenueByMonth,
         treatmentsByType,
         appointmentStatus: appointmentStatusDist,

@@ -8,7 +8,16 @@ const nextConfig: NextConfig = {
     "localhost:3000",
     "lvh.me:3000",
     "*.lvh.me:3000"
-  ]
+  ],
+  async redirects() {
+    return [
+      {
+        source: "/services",
+        destination: "/treatments",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

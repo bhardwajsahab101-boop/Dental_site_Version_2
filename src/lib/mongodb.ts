@@ -25,27 +25,31 @@ async function seedDefaultClinicAndUser() {
     const { User } = await import("../models/User");
     const { ClinicSettings } = await import("../models/ClinicSettings");
     const { SaaSSettings, getSaaSSettings } = await import("../models/SaaSSettings");
+    const { WebsiteContent } = await import("../models/WebsiteContent");
+    const { GalleryItem } = await import("../models/GalleryItem");
+    const { INITIAL_GALLERY } = await import("../data/galleryData");
     const { hashPassword } = await import("./auth");
- 
+
     // Seed SaaS Settings
     await getSaaSSettings();
-    console.log("SaaS Settings initialized/verified.");
 
     let clinic = await Clinic.findOne();
     if (!clinic) {
-      console.log("No clinics found. Checking legacy settings for seeding...");
+      console.log("No clinics found. Seeding default clinic for Anil Sharma Dental Hospital...");
       const legacySettings = await ClinicSettings.findOne();
-      
+
       clinic = await Clinic.create({
         slug: "default",
-        name: legacySettings?.name || "Dental Clinic",
-        email: legacySettings?.email || "support@clinic.com",
-        phone: legacySettings?.phone || "+91 99999 99999",
-        address: legacySettings?.address || "Clinic Address",
+        name: "Anil Sharma Dental Hospital",
+        alternateName: "A.K. Sharma Dental Hospital",
+        email: process.env.ADMIN_EMAIL || legacySettings?.email || "contact@sharmadental.com",
+        phone: "+91 (Contact Number Placeholder)",
+        whatsappPhone: "+91 (WhatsApp Number Placeholder)",
+        address: "Anil Sharma Dental Hospital, (Exact Address Placeholder)",
         logo: legacySettings?.logo || "",
-        gstNumber: legacySettings?.gstNumber || "27AAAAA1111A1Z1",
+        gstNumber: legacySettings?.gstNumber || "GST Pending Verification",
         status: "active",
-        trialEndsAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // long trial for seeded clinic
+        trialEndsAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
       });
       console.log("Seeded default clinic:", clinic.name, clinic._id);
     } else {
@@ -58,23 +62,55 @@ async function seedDefaultClinicAndUser() {
         clinic.status = "active";
         needsSave = true;
       }
+      if (!clinic.alternateName) {
+        clinic.alternateName = "A.K. Sharma Dental Hospital";
+        needsSave = true;
+      }
+      if (clinic.name === "Dental Clinic") {
+        clinic.name = "Anil Sharma Dental Hospital";
+        needsSave = true;
+      }
       if (needsSave) {
         await clinic.save();
-        console.log("Self-healed clinic with status 'active' and slug 'default'");
       }
     }
 
     // Seed default services for the clinic
     const { seedDefaultServicesForClinic } = await import("../models/ClinicService");
     await seedDefaultServicesForClinic(clinic._id);
- 
+
+    // Seed WebsiteContent if not exists
+    const existingContent = await WebsiteContent.findOne({ clinicId: clinic._id });
+    if (!existingContent) {
+      await WebsiteContent.create({
+        clinicId: clinic._id,
+      });
+      console.log("Seeded default WebsiteContent for clinic:", clinic._id);
+    }
+
+    // Seed initial Gallery items if none exist
+    const galleryCount = await GalleryItem.countDocuments({ clinicId: clinic._id });
+    if (galleryCount === 0) {
+      for (const item of INITIAL_GALLERY) {
+        await GalleryItem.create({
+          clinicId: clinic._id,
+          title: item.title,
+          alt: item.alt,
+          imageUrl: item.imageUrl,
+          category: item.category,
+          isFeatured: item.isFeatured,
+        });
+      }
+      console.log("Seeded initial gallery items for clinic:", clinic._id);
+    }
+
     const userCount = await User.countDocuments();
     if (userCount === 0) {
       console.log("No users found. Seeding default clinic administrator...");
-      const email = process.env.ADMIN_EMAIL || "admin@example.com";
+      const email = process.env.ADMIN_EMAIL || "admin@sharmadental.com";
       const rawPassword = process.env.ADMIN_PASSWORD || "Password123";
       const password = await hashPassword(rawPassword);
- 
+
       const user = await User.create({
         clinicId: clinic._id,
         name: "Clinic Administrator",
@@ -84,14 +120,14 @@ async function seedDefaultClinicAndUser() {
       });
       console.log("Seeded default owner user:", user.email, user._id);
     }
- 
+
     const superAdmin = await User.findOne({ role: "admin" });
     if (!superAdmin) {
       console.log("No SaaS Super Admin found. Seeding default super admin...");
-      const email = process.env.SUPERADMIN_EMAIL || "superadmin@example.com";
+      const email = process.env.SUPERADMIN_EMAIL || "superadmin@dentalos.com";
       const rawPassword = process.env.SUPERADMIN_PASSWORD || "Superadmin123";
       const password = await hashPassword(rawPassword);
- 
+
       const user = await User.create({
         name: "SaaS Super Admin",
         email: email.toLowerCase(),
@@ -154,9 +190,7 @@ export async function connectDB() {
     const opts = {
       bufferCommands: false,
     };
-    console.log("Connecting to MongoDB (initializing new connection)...");
     cached.promise = mongoose.connect(MONGODB_URI, opts).then((m) => {
-      console.log("MongoDB Connected successfully");
       return m;
     });
   }

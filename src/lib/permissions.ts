@@ -14,6 +14,21 @@ export function hasPageAccess(role: string, pathname: string): boolean {
     return ["admin"].includes(role);
   }
 
+  // Website Content CMS: Owner or Admin
+  if (normPath.startsWith("/admin/content")) {
+    return ["owner", "admin"].includes(role);
+  }
+
+  // Gallery Manager: Owner or Admin
+  if (normPath.startsWith("/admin/gallery")) {
+    return ["owner", "admin"].includes(role);
+  }
+
+  // Enquiries: Owner, Receptionist, or Admin
+  if (normPath.startsWith("/admin/enquiries")) {
+    return ["owner", "receptionist", "admin"].includes(role);
+  }
+
   // Clinic Settings: Owner or Admin
   if (normPath.startsWith("/admin/settings")) {
     return ["owner", "admin"].includes(role);
@@ -81,6 +96,16 @@ export function hasApiAccess(role: string, pathname: string, method: string): bo
   // Other roles cannot register clinics
   if (normPath.startsWith("/api/admin/register")) {
     return false;
+  }
+
+  // Website Content CMS APIs: Owner or Admin
+  if (normPath.startsWith("/api/admin/content")) {
+    return ["owner", "admin"].includes(role);
+  }
+
+  // Gallery Management APIs: Owner or Admin
+  if (normPath.startsWith("/api/admin/gallery")) {
+    return ["owner", "admin"].includes(role);
   }
 
   // Settings APIs: Owner only

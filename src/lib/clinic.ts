@@ -40,13 +40,19 @@ export async function getCurrentClinic() {
   if (!clinicId) {
     return {
       id: "fallback-id",
-      clinicName: "Dental Clinic",
-      name: "Dental Clinic",
-      email: "support@clinic.com",
-      phone: "+91 99999 99999",
-      address: "Clinic Address",
+      clinicName: "Anil Sharma Dental Hospital",
+      name: "Anil Sharma Dental Hospital",
+      alternateName: "A.K. Sharma Dental Hospital",
+      email: "contact@sharmadental.com",
+      phone: "+91 (Contact Number Placeholder)",
+      whatsappPhone: "+91 (WhatsApp Number Placeholder)",
+      address: "Anil Sharma Dental Hospital, (Exact Address Placeholder)",
       logo: "",
       slug: "default",
+      gstNumber: "Pending Verification",
+      googleMapsUrl: "",
+      googleBusinessUrl: "",
+      emergencyPhone: "",
     };
   }
 
@@ -57,14 +63,19 @@ export async function getCurrentClinic() {
 
   return {
     id: String(clinic._id),
-    slug: clinic.slug || "",
-    name: clinic.name || "",
-    clinicName: clinic.name || "",
-    email: clinic.email || "",
-    phone: clinic.phone || "",
-    address: clinic.address || "",
+    slug: clinic.slug || "default",
+    name: clinic.name || "Anil Sharma Dental Hospital",
+    clinicName: clinic.name || "Anil Sharma Dental Hospital",
+    alternateName: clinic.alternateName || "A.K. Sharma Dental Hospital",
+    email: clinic.email || "contact@sharmadental.com",
+    phone: clinic.phone || "+91 (Contact Number Placeholder)",
+    whatsappPhone: clinic.whatsappPhone || "+91 (WhatsApp Number Placeholder)",
+    address: clinic.address || "Anil Sharma Dental Hospital, (Exact Address Placeholder)",
     logo: clinic.logo || "",
     gstNumber: clinic.gstNumber || "",
+    googleMapsUrl: clinic.googleMapsUrl || "",
+    googleBusinessUrl: clinic.googleBusinessUrl || "",
+    emergencyPhone: clinic.emergencyPhone || "",
   };
 }
 

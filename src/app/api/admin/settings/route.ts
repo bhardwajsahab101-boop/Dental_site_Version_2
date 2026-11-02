@@ -51,7 +51,20 @@ export async function POST(req: Request) {
     await connectDB();
  
     const body = await req.json();
-    const { slug, name, logo, phone, email, address, gstNumber } = body;
+    const {
+      slug,
+      name,
+      alternateName,
+      logo,
+      phone,
+      whatsappPhone,
+      email,
+      address,
+      gstNumber,
+      googleMapsUrl,
+      googleBusinessUrl,
+      emergencyPhone,
+    } = body;
  
     if (!name || !phone || !email || !address) {
       return NextResponse.json(
@@ -88,11 +101,16 @@ export async function POST(req: Request) {
     }
  
     settings.name = name;
+    if (alternateName !== undefined) settings.alternateName = alternateName;
     settings.logo = logo || "";
     settings.phone = phone;
+    if (whatsappPhone !== undefined) settings.whatsappPhone = whatsappPhone;
     settings.email = email;
     settings.address = address;
     settings.gstNumber = gstNumber || "";
+    if (googleMapsUrl !== undefined) settings.googleMapsUrl = googleMapsUrl;
+    if (googleBusinessUrl !== undefined) settings.googleBusinessUrl = googleBusinessUrl;
+    if (emergencyPhone !== undefined) settings.emergencyPhone = emergencyPhone;
  
     await settings.save();
  

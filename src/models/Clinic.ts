@@ -1,13 +1,18 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
- 
+
 export interface IClinic extends Document {
   slug: string;
   name: string;
+  alternateName?: string;
   email: string;
   phone: string;
+  whatsappPhone?: string;
   address: string;
   logo?: string;
   gstNumber?: string;
+  googleMapsUrl?: string;
+  googleBusinessUrl?: string;
+  emergencyPhone?: string;
   status: "active" | "suspended" | "trial";
   trialEndsAt: Date;
   subscriptionPlan?: string;
@@ -20,7 +25,7 @@ export interface IClinic extends Document {
   createdAt: Date;
   updatedAt: Date;
 }
- 
+
 const clinicSchema = new Schema<IClinic>(
   {
     slug: {
@@ -36,6 +41,11 @@ const clinicSchema = new Schema<IClinic>(
       required: true,
       trim: true,
     },
+    alternateName: {
+      type: String,
+      default: "A.K. Sharma Dental Hospital",
+      trim: true,
+    },
     email: {
       type: String,
       required: true,
@@ -46,6 +56,11 @@ const clinicSchema = new Schema<IClinic>(
     phone: {
       type: String,
       required: true,
+      trim: true,
+    },
+    whatsappPhone: {
+      type: String,
+      default: "",
       trim: true,
     },
     address: {
@@ -62,20 +77,35 @@ const clinicSchema = new Schema<IClinic>(
       default: "",
       trim: true,
     },
+    googleMapsUrl: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    googleBusinessUrl: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    emergencyPhone: {
+      type: String,
+      default: "",
+      trim: true,
+    },
     status: {
       type: String,
       enum: ["active", "suspended", "trial"],
-      default: "trial",
+      default: "active",
       required: true,
     },
     trialEndsAt: {
       type: Date,
-      default: () => new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days trial
+      default: () => new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
       required: true,
     },
     subscriptionPlan: {
       type: String,
-      default: "Trial",
+      default: "Professional",
     },
     subscriptionStatus: {
       type: String,
@@ -87,7 +117,7 @@ const clinicSchema = new Schema<IClinic>(
     },
     subscriptionEndDate: {
       type: Date,
-      default: () => new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
+      default: () => new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
     },
     isActive: {
       type: Boolean,
@@ -99,13 +129,14 @@ const clinicSchema = new Schema<IClinic>(
     },
     lastSubscriptionWarningDaysLeft: {
       type: Number,
+      default: 0,
     },
   },
   {
     timestamps: true,
   }
 );
- 
+
 export const Clinic =
   (mongoose.models.Clinic as Model<IClinic>) ||
   mongoose.model<IClinic>("Clinic", clinicSchema);
