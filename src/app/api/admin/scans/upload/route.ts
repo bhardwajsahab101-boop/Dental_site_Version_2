@@ -5,6 +5,7 @@ import crypto from "crypto";
 import { getCurrentUser } from "@/src/lib/auth";
 import { connectDB } from "@/src/lib/mongodb";
 import { ScanDocument } from "@/src/models/ScanDocument";
+import { ScanBatch } from "@/src/models/ScanBatch";
 import { logActivity } from "@/src/lib/audit";
 
 export async function POST(req: NextRequest) {
@@ -14,9 +15,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
     }
 
-    const formData = await req.formData();
+    let formData: FormData;
+    try {
+      formData = await req.formData();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Upload failed: Payload too large or invalid multipart form data (Maximum allowed file size is 10MB)." },
+        { status: 400 }
+      );
+    }
+
     const files = formData.getAll("files") as File[];
     const singleFile = formData.get("file") as File | null;
+    const testMode = formData.get("testMode") === "true";
+    const batchNameInput = formData.get("batchName") as string | null;
+    const existingBatchId = formData.get("batchId") as string | null;
 
     const filesToProcess: File[] = [];
     if (singleFile) filesToProcess.push(singleFile);
@@ -32,6 +45,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: "No files uploaded" }, { status: 400 });
     }
 
+    // Size limit check (max 10MB per file)
+    const MAX_FILE_SIZE = 10 * 1024 * 1024;
+    for (const file of filesToProcess) {
+      if (file.size > MAX_FILE_SIZE) {
+        return NextResponse.json(
+          { success: false, message: `File ${file.name} exceeds maximum allowed size (15MB).` },
+          { status: 400 }
+        );
+      }
+    }
+
     await connectDB();
 
     const storageDir = path.join(process.cwd(), "private_storage", "scans");
@@ -39,7 +63,44 @@ export async function POST(req: NextRequest) {
       fs.mkdirSync(storageDir, { recursive: true });
     }
 
+    // Resolve or create Batch
+    let activeBatch = null;
+    if (existingBatchId) {
+      activeBatch = await ScanBatch.findOne({ _id: existingBatchId, clinicId: user.clinicId });
+    }
+
+    if (!activeBatch) {
+      const now = new Date();
+      const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");
+      const randomSuffix = Math.floor(100 + Math.random() * 900);
+      const batchCode = `BATCH-${dateStr}-${randomSuffix}`;
+      const batchName = batchNameInput?.trim() || `Register Batch ${batchCode}`;
+
+      activeBatch = await ScanBatch.create({
+        clinicId: user.clinicId,
+        batchName,
+        batchCode,
+        totalPages: 0,
+        totalDetected: 0,
+        totalApproved: 0,
+        totalRejected: 0,
+        status: "uploaded",
+        pages: [],
+        testMode,
+        createdBy: user.userId,
+        createdByName: user.name,
+      });
+
+      await logActivity(
+        "CREATE_SCAN_BATCH",
+        `Created register batch: ${batchName} (${batchCode})`,
+        String(activeBatch._id),
+        "ScanBatch"
+      );
+    }
+
     const createdDocs = [];
+    let pageNum = (activeBatch.pages?.length || 0) + 1;
 
     for (const file of filesToProcess) {
       // Validate mime type
@@ -62,6 +123,8 @@ export async function POST(req: NextRequest) {
 
       const doc = await ScanDocument.create({
         clinicId: user.clinicId,
+        batchId: activeBatch._id,
+        pageNumber: pageNum++,
         fileName: file.name,
         storedFileName,
         fileSize: file.size,
@@ -79,17 +142,23 @@ export async function POST(req: NextRequest) {
 
       await logActivity(
         "UPLOAD_REGISTER_SCAN",
-        `Uploaded register page: ${file.name} (${Math.round(file.size / 1024)} KB)`,
+        `Uploaded register page #${doc.pageNumber}: ${file.name} (${Math.round(file.size / 1024)} KB) in batch ${activeBatch.batchCode}`,
         String(doc._id),
         "ScanDocument"
       );
 
+      activeBatch.pages.push(doc._id as any);
       createdDocs.push(doc);
     }
 
+    activeBatch.totalPages = activeBatch.pages.length;
+    await activeBatch.save();
+
     return NextResponse.json({
       success: true,
-      message: `Uploaded ${createdDocs.length} register page(s) successfully`,
+      message: `Uploaded ${createdDocs.length} register page(s) successfully to batch ${activeBatch.batchCode}`,
+      batch: activeBatch,
+      batchId: activeBatch._id,
       scans: createdDocs,
       firstScanId: createdDocs[0]._id,
     });

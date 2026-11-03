@@ -14,10 +14,14 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
+    const batchId = searchParams.get("batchId");
 
     const query: any = { clinicId: user.clinicId };
     if (status && status !== "all") {
       query.status = status;
+    }
+    if (batchId) {
+      query.batchId = batchId;
     }
 
     const scans = await ScanDocument.find(query)
@@ -27,6 +31,8 @@ export async function GET(req: NextRequest) {
 
     const formatted = scans.map((s) => ({
       _id: s._id,
+      batchId: s.batchId,
+      pageNumber: s.pageNumber || 1,
       fileName: s.fileName,
       storedFileName: s.storedFileName,
       imageUrl: `/api/admin/scans/image/${s.storedFileName}`,
@@ -34,6 +40,8 @@ export async function GET(req: NextRequest) {
       status: s.status,
       ocrEngine: s.ocrEngine,
       language: s.language,
+      columnsDetected: s.columnsDetected,
+      readingOrder: s.readingOrder,
       detectedCount: s.detectedCount,
       approvedCount: s.approvedCount,
       rejectedCount: s.rejectedCount,

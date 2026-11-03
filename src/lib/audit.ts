@@ -9,7 +9,7 @@ export async function logActivity(
   action: string,
   details: string,
   targetId?: string,
-  targetType?: "Patient" | "Appointment" | "Treatment" | "User" | "ScanDocument",
+  targetType?: "Patient" | "Appointment" | "Treatment" | "User" | "ScanDocument" | "ScanBatch",
   clinicIdOverride?: string
 ): Promise<void> {
   try {

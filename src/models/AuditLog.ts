@@ -8,7 +8,7 @@ export interface IAuditLog extends Document {
   action: string;
   details: string;
   targetId?: mongoose.Types.ObjectId;
-  targetType?: "Patient" | "Appointment" | "Treatment" | "User" | "ScanDocument";
+  targetType?: "Patient" | "Appointment" | "Treatment" | "User" | "ScanDocument" | "ScanBatch";
   createdAt: Date;
 }
 
@@ -53,7 +53,7 @@ const auditLogSchema = new Schema<IAuditLog>(
     },
     targetType: {
       type: String,
-      enum: ["Patient", "Appointment", "Treatment", "User", "ScanDocument"],
+      enum: ["Patient", "Appointment", "Treatment", "User", "ScanDocument", "ScanBatch"],
       required: false,
     },
   },

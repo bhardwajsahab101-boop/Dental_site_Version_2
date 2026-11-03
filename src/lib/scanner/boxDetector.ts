@@ -4,6 +4,8 @@ export interface BoxGridItem {
   boxIndex: number;
   col: number;
   row: number;
+  colIndex?: number;
+  rowIndex?: number;
   coordinates: IBoxCoordinates;
 }
 
@@ -76,6 +78,8 @@ export function generateGridBoxes(
     boxIndex: idx + 1,
     col: item.col,
     row: item.row,
+    colIndex: item.col,
+    rowIndex: item.row,
     coordinates: item.coordinates,
   }));
 }
@@ -130,3 +134,4 @@ export const DEFAULT_REGISTER_TEMPLATES = [
     isDefault: false,
   },
 ];
+

@@ -98,3 +98,4 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, message: error.message || "Failed to create template" }, { status: 500 });
   }
 }
+

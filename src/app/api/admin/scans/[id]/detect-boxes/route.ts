@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import path from "path";
+import fs from "fs";
 import { getCurrentUser } from "@/src/lib/auth";
 import { connectDB } from "@/src/lib/mongodb";
 import { ScanDocument } from "@/src/models/ScanDocument";
 import { RegisterTemplate } from "@/src/models/RegisterTemplate";
 import { generateGridBoxes } from "@/src/lib/scanner/boxDetector";
+import { runOpenCVGridDetection } from "@/src/lib/scanner/opencvDetector";
 import { logActivity } from "@/src/lib/audit";
 
 export async function POST(
@@ -17,12 +20,13 @@ export async function POST(
     }
 
     const { id } = await params;
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
     const {
       columnsCount = 2,
       rowsPerColumn = 4,
       readingOrder = "column_first",
       templateId,
+      autoDetectWithOpenCV = false,
     } = body;
 
     await connectDB();
@@ -39,8 +43,25 @@ export async function POST(
     let finalCols = columnsCount;
     let finalRows = rowsPerColumn;
     let finalOrder = readingOrder;
+    let methodUsed = "manual_template";
 
-    if (templateId) {
+    const filePath = path.join(process.cwd(), "private_storage", "scans", scan.storedFileName);
+
+    let detectedBoxes = null;
+    if (autoDetectWithOpenCV && fs.existsSync(filePath)) {
+      const cvRes = await runOpenCVGridDetection(filePath, {
+        expectedCols: columnsCount,
+        readingOrder,
+      });
+      if (cvRes.success && cvRes.boxes.length > 0) {
+        finalCols = cvRes.columnsDetected;
+        finalRows = cvRes.rowsDetected;
+        methodUsed = cvRes.detectionMethod;
+        detectedBoxes = cvRes.boxes;
+      }
+    }
+
+    if (!detectedBoxes && templateId) {
       const tpl = await RegisterTemplate.findOne({
         _id: templateId,
         clinicId: user.clinicId,
@@ -53,8 +74,13 @@ export async function POST(
       }
     }
 
-    // Generate grid box geometries
-    const gridBoxes = generateGridBoxes(finalCols, finalRows, finalOrder);
+    // Generate grid box geometries if OpenCV didn't already supply exact coordinates
+    const gridBoxes = detectedBoxes || generateGridBoxes(finalCols, finalRows, finalOrder).map((b) => ({
+      index: b.boxIndex,
+      colIndex: b.colIndex ?? b.col,
+      rowIndex: b.rowIndex ?? b.row,
+      coordinates: b.coordinates,
+    }));
 
     // Update scan metadata
     scan.layoutType = "grid_boxes";
@@ -62,24 +88,34 @@ export async function POST(
     scan.readingOrder = finalOrder;
 
     // Adjust entries to match grid boxes
-    const newEntries = gridBoxes.map((box, idx) => {
+    const newEntries = gridBoxes.map((box: any, idx: number) => {
+      const boxCoords = box.coordinates || {
+        x: box.x,
+        y: box.y,
+        width: box.width,
+        height: box.height,
+      };
+      const bIndex = box.boxIndex ?? box.index ?? idx + 1;
+      const bCol = box.colIndex ?? box.col ?? 0;
+      const bRow = box.rowIndex ?? box.row ?? 0;
+
       const existing = scan.entries[idx];
       if (existing) {
-        existing.boxIndex = box.boxIndex;
-        existing.colIndex = box.col;
-        existing.rowIndex = box.row;
-        existing.boxCoordinates = box.coordinates;
+        existing.boxIndex = bIndex;
+        existing.colIndex = bCol;
+        existing.rowIndex = bRow;
+        existing.boxCoordinates = boxCoords;
         return existing;
       }
       return {
-        entryIndex: box.boxIndex,
-        boxIndex: box.boxIndex,
-        colIndex: box.col,
-        rowIndex: box.row,
-        boxCoordinates: box.coordinates,
+        entryIndex: bIndex,
+        boxIndex: bIndex,
+        colIndex: bCol,
+        rowIndex: bRow,
+        boxCoordinates: boxCoords,
         status: "pending" as const,
         fields: {
-          fullName: { value: `Patient in Box ${box.boxIndex}`, confidence: 30, flag: "low" as const },
+          fullName: { value: `Patient in Box ${bIndex}`, confidence: 30, flag: "low" as const },
           age: { confidence: 0, flag: "missing" as const },
           gender: { confidence: 0, flag: "missing" as const },
           phone: { confidence: 0, flag: "missing" as const },
@@ -119,3 +155,4 @@ export async function POST(
     return NextResponse.json({ success: false, message: error.message || "Failed to detect boxes" }, { status: 500 });
   }
 }
+

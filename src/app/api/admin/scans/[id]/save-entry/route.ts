@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { getCurrentUser } from "@/src/lib/auth";
 import { connectDB } from "@/src/lib/mongodb";
 import { ScanDocument } from "@/src/models/ScanDocument";
+import { ScanBatch } from "@/src/models/ScanBatch";
 import { Patient } from "@/src/models/Patient";
 import { Appointment } from "@/src/models/Appointment";
 import { Treatment, computePaymentFields } from "@/src/models/treatment";
@@ -42,6 +43,18 @@ export async function POST(
     const entry = scan.entries.find((e) => e.entryIndex === entryIndex);
     if (!entry) {
       return NextResponse.json({ success: false, message: "Entry not found" }, { status: 404 });
+    }
+
+    // Prevent duplicate saves if accidentally clicked twice
+    if (entry.status === "saved") {
+      return NextResponse.json({
+        success: true,
+        message: `Patient record has already been saved (${entry.savedPatientCode || "Saved"})`,
+        patientId: entry.savedPatientId,
+        patientCode: entry.savedPatientCode,
+        scanStatus: scan.status,
+        entry,
+      });
     }
 
     // Apply any customized fields submitted during confirmation
@@ -186,6 +199,23 @@ export async function POST(
     }
 
     await scan.save();
+
+    if (scan.batchId) {
+      const batchPages = await ScanDocument.find({ batchId: scan.batchId, clinicId: user.clinicId });
+      const totalApproved = batchPages.reduce((acc, p) => acc + (p.approvedCount || 0), 0);
+      const totalRejected = batchPages.reduce((acc, p) => acc + (p.rejectedCount || 0), 0);
+      const totalDetected = batchPages.reduce((acc, p) => acc + (p.detectedCount || 0), 0);
+      const isBatchAllDone = batchPages.every((p) => p.status === "completed" || p.status === "failed");
+      await ScanBatch.updateOne(
+        { _id: scan.batchId, clinicId: user.clinicId },
+        {
+          totalApproved,
+          totalRejected,
+          totalDetected,
+          status: isBatchAllDone ? "approved" : "partially_approved",
+        }
+      );
+    }
 
     await logActivity(
       "CONFIRM_SCAN_ENTRY",

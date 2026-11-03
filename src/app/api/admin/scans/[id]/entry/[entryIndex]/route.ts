@@ -36,16 +36,21 @@ export async function PATCH(
       return NextResponse.json({ success: false, message: "Entry not found" }, { status: 404 });
     }
 
-    // Update fields
-    if (fields) {
-      for (const key of Object.keys(fields)) {
-        if ((entry.fields as any)[key]) {
-          (entry.fields as any)[key] = {
-            ...(entry.fields as any)[key],
-            ...fields[key],
-            confidence: 100, // Staff manually verified/edited
-            flag: "high",
-          };
+    // Update fields (supports nested fields or flat key-value pairs)
+    const incomingFields = fields || body;
+    for (const key of Object.keys(incomingFields)) {
+      if (key === "status" || key === "fields") continue;
+      const rawVal = incomingFields[key];
+      const val = typeof rawVal === "object" && rawVal !== null && "value" in rawVal ? rawVal.value : rawVal;
+      if ((entry.fields as any)[key] !== undefined) {
+        (entry.fields as any)[key] = {
+          value: val,
+          confidence: 100, // Staff manually verified/edited
+          flag: "high",
+        };
+        // Remove from unreadableFields if previously flagged
+        if (entry.unreadableFields && entry.unreadableFields.includes(key)) {
+          entry.unreadableFields = entry.unreadableFields.filter((f) => f !== key);
         }
       }
     }

@@ -4,9 +4,11 @@ import fs from "fs";
 import { IScanEntry } from "../../models/ScanDocument";
 import { findDuplicatePatient } from "./duplicateDetector";
 import { generateGridBoxes, BoxGridItem } from "./boxDetector";
+import { callAPInexRegisterExtraction, ExtractedPatient } from "./apinexClient";
+import { runOpenCVGridDetection } from "./opencvDetector";
 
 export interface OCRProcessingOptions {
-  engine?: "tesseract" | "gemini" | "hybrid" | "local";
+  engine?: "tesseract" | "gemini" | "hybrid" | "local" | "apinex";
   language?: "mixed" | "eng" | "hin";
   clinicId: string;
   layoutType?: "grid_boxes" | "table_rows";
@@ -14,6 +16,7 @@ export interface OCRProcessingOptions {
   rowsPerColumn?: number;
   readingOrder?: "column_first" | "row_first";
   templateId?: string;
+  testMode?: boolean;
 }
 
 // Dental terminology dictionary for phonetic & semantic validation
@@ -712,64 +715,250 @@ Output strictly valid JSON array of boxes.`;
 }
 
 /**
- * Master Extraction Pipeline supporting Box-Based and Column-Based Registers
+ * Maps APInex structured patient output to DentalOS Scan Entries with duplicate detection
+ */
+async function mapAPInexPatientsToEntries(
+  patients: ExtractedPatient[],
+  clinicId: string,
+  openCVBoxes: Array<{ x: number; y: number; width: number; height: number }>,
+  columnsCount: number,
+  readingOrder: "column_first" | "row_first"
+): Promise<IScanEntry[]> {
+  const entries: IScanEntry[] = [];
+  const rowsPerCol = Math.ceil(patients.length / (columnsCount || 2));
+
+  for (let i = 0; i < patients.length; i++) {
+    const p = patients[i];
+    const box = openCVBoxes[i] || {
+      x: ((i % columnsCount) * (100 / columnsCount)) + 2,
+      y: (Math.floor(i / columnsCount) * 20) + 4,
+      width: (100 / columnsCount) - 4,
+      height: 18,
+    };
+
+    const colIndex = readingOrder === "column_first" ? Math.floor(i / rowsPerCol) : i % columnsCount;
+    const rowIndex = readingOrder === "column_first" ? i % rowsPerCol : Math.floor(i / columnsCount);
+
+    const nameConf = Math.round((p.confidence?.name ?? 0.95) * 100);
+    const ageConf = p.age != null ? Math.round((p.confidence?.age ?? 0.90) * 100) : 0;
+    const phoneConf = p.phone ? Math.round((p.confidence?.phone ?? (p.phone.length === 10 ? 0.95 : 0.45)) * 100) : 0;
+    const treatConf = p.treatment ? Math.round((p.confidence?.treatment ?? 0.95) * 100) : 0;
+    const amtConf = p.amount != null ? Math.round((p.confidence?.amount ?? 0.90) * 100) : 0;
+
+    const entry: IScanEntry = {
+      entryIndex: i + 1,
+      boxIndex: i,
+      colIndex,
+      rowIndex,
+      boxCoordinates: {
+        x: box.x,
+        y: box.y,
+        width: box.width,
+        height: box.height,
+      },
+      status: "pending",
+      unreadableFields: p.unreadableFields || [],
+      confidenceScores: p.confidence || {},
+      fields: {
+        fullName: {
+          value: p.name,
+          confidence: nameConf,
+          flag: nameConf >= 85 ? "high" : nameConf >= 50 ? "medium" : "uncertain",
+        },
+        age: {
+          value: p.age ?? undefined,
+          confidence: ageConf,
+          flag: ageConf >= 85 ? "high" : ageConf > 0 ? "medium" : "missing",
+        },
+        gender: {
+          value: p.gender ?? undefined,
+          confidence: p.gender ? 90 : 0,
+          flag: p.gender ? "high" : "missing",
+        },
+        phone: {
+          value: p.phone ?? undefined,
+          confidence: phoneConf,
+          flag: phoneConf >= 85 ? "high" : phoneConf > 0 ? "uncertain" : "missing",
+        },
+        visitDate: {
+          value: p.visitDate || new Date().toISOString().split("T")[0],
+          confidence: 85,
+          flag: "high",
+        },
+        patientCode: {
+          value: p.patientCode ?? undefined,
+          confidence: p.patientCode ? 80 : 0,
+          flag: p.patientCode ? "high" : "missing",
+        },
+        chiefComplaint: {
+          value: p.chiefComplaint ?? undefined,
+          confidence: treatConf,
+          flag: treatConf >= 80 ? "high" : treatConf > 0 ? "medium" : "missing",
+        },
+        treatment: {
+          value: p.treatment ?? undefined,
+          confidence: treatConf,
+          flag: treatConf >= 80 ? "high" : treatConf > 0 ? "medium" : "missing",
+        },
+        dentalNotes: {
+          value: p.dentalNotes ?? undefined,
+          confidence: 80,
+          flag: p.dentalNotes ? "medium" : "missing",
+        },
+        prescribedTreatment: {
+          confidence: 0,
+          flag: "missing",
+        },
+        prescribedMedication: {
+          value: p.prescribedMedication ?? undefined,
+          confidence: p.prescribedMedication ? 80 : 0,
+          flag: p.prescribedMedication ? "medium" : "missing",
+        },
+        amount: {
+          value: p.amount ?? undefined,
+          confidence: amtConf,
+          flag: amtConf >= 80 ? "high" : amtConf > 0 ? "medium" : "missing",
+        },
+        paymentStatus: {
+          value: p.paymentStatus ?? undefined,
+          confidence: p.paymentStatus ? 85 : 0,
+          flag: p.paymentStatus ? "high" : "missing",
+        },
+        followUpDate: {
+          value: p.nextVisitDate ?? undefined,
+          confidence: p.nextVisitDate ? 80 : 0,
+          flag: p.nextVisitDate ? "medium" : "missing",
+        },
+        nextAppointmentDate: {
+          value: p.nextVisitDate ?? undefined,
+          confidence: p.nextVisitDate ? 80 : 0,
+          flag: p.nextVisitDate ? "medium" : "missing",
+        },
+        remarks: {
+          value: p.remarks ?? undefined,
+          confidence: p.remarks ? 75 : 0,
+          flag: p.remarks ? "medium" : "missing",
+        },
+      },
+    };
+
+    const dupMatch = await findDuplicatePatient(clinicId, {
+      fullName: entry.fields.fullName.value,
+      phone: entry.fields.phone.value,
+      age: entry.fields.age.value,
+    });
+
+    if (dupMatch) {
+      entry.duplicateMatch = {
+        patientId: dupMatch.patientId,
+        patientCode: dupMatch.patientCode,
+        fullName: dupMatch.fullName,
+        phone: dupMatch.phone,
+        matchReason: dupMatch.matchReason,
+        lastVisit: dupMatch.lastVisit,
+      };
+    }
+
+    entries.push(entry);
+  }
+
+  return entries;
+}
+
+/**
+ * Master Extraction Pipeline supporting Box-Based and Column-Based Registers with OpenCV & APInex
  */
 export async function executeDocumentExtraction(
   imagePath: string,
   options: OCRProcessingOptions
-): Promise<{ entries: IScanEntry[]; engineUsed: string; rawOcrText?: string }> {
-  const layout = options.layoutType || "grid_boxes";
+): Promise<{ entries: IScanEntry[]; engineUsed: string; rawOcrText?: string; openCVDetected?: boolean }> {
   const cols = options.columnsCount || 2;
   const rows = options.rowsPerColumn || 4;
   const readingOrder = options.readingOrder || "column_first";
 
-  // 1. Try Vision AI if configured
-  if (options.engine === "gemini" || options.engine === "hybrid") {
-    const aiResult = await runGeminiVisionExtraction(imagePath, options);
-    if (aiResult && aiResult.length > 0) {
+  // 1. Run local OpenCV grid & box detection
+  const openCVResult = await runOpenCVGridDetection(imagePath, {
+    expectedCols: cols,
+    readingOrder,
+  });
+
+  const boxesToUse = openCVResult.boxes.length > 0
+    ? openCVResult.boxes
+    : generateGridBoxes(cols, rows, readingOrder).map((b) => ({
+        index: b.boxIndex,
+        colIndex: b.colIndex,
+        rowIndex: b.rowIndex,
+        x: b.coordinates.x,
+        y: b.coordinates.y,
+        width: b.coordinates.width,
+        height: b.coordinates.height,
+        source: "pure_template",
+      }));
+
+  // 2. APInex AI Vision Extraction (Primary AI Provider)
+  if (options.engine === "apinex" || options.engine === "gemini" || options.engine === "hybrid" || (!options.engine && process.env.APINEX_API_KEY)) {
+    const apinexRes = await callAPInexRegisterExtraction({
+      imagePath,
+      columnsCount: openCVResult.columnsDetected || cols,
+      readingOrder,
+      totalBoxesExpected: boxesToUse.length,
+      testMode: options.testMode,
+    });
+
+    if (apinexRes.success && apinexRes.patients.length > 0) {
+      const entries = await mapAPInexPatientsToEntries(
+        apinexRes.patients,
+        options.clinicId,
+        boxesToUse,
+        openCVResult.columnsDetected || cols,
+        readingOrder
+      );
+
       return {
-        entries: aiResult,
-        engineUsed: "gemini_vision",
+        entries,
+        engineUsed: apinexRes.modelUsed,
+        rawOcrText: apinexRes.rawResponse,
+        openCVDetected: openCVResult.detectionMethod === "opencv_lines",
       };
     }
   }
 
-  // 2. Local OCR + Box Grid Structuring
+  // 3. Fallback to Local OCR + OpenCV Box Grid Structuring
   const ocrText = await runLocalTesseractOCR(imagePath, options.language || "mixed");
 
-  if (layout === "grid_boxes") {
-    // Generate individual box geometries
-    const gridBoxes = generateGridBoxes(cols, rows, readingOrder);
+  const rawBlocks = ocrText
+    .split(/\n{2,}|\r\n\r\n/)
+    .map((b) => b.trim())
+    .filter((b) => b.length > 2);
 
-    // Segment text into boxes (or distribute raw chunks by box sequence)
-    const rawBlocks = ocrText
-      .split(/\n{2,}|\r\n\r\n/)
-      .map((b) => b.trim())
-      .filter((b) => b.length > 2);
+  const entries: IScanEntry[] = [];
 
-    const entries: IScanEntry[] = [];
+  for (let i = 0; i < boxesToUse.length; i++) {
+    const box = boxesToUse[i];
+    const boxRawText = rawBlocks[i] || "";
 
-    for (let i = 0; i < gridBoxes.length; i++) {
-      const box = gridBoxes[i];
-      const boxRawText = rawBlocks[i] || "";
-
-      // Parse this specific box independently
-      const entry = await structureBoxText(boxRawText, options.clinicId, box);
-      entries.push(entry);
-    }
-
-    return {
-      entries,
-      engineUsed: "tesseract_box_grid",
-      rawOcrText: ocrText,
+    const gridItem: BoxGridItem = {
+      boxIndex: box.index,
+      col: box.colIndex ?? 0,
+      row: box.rowIndex ?? 0,
+      colIndex: box.colIndex ?? 0,
+      rowIndex: box.rowIndex ?? 0,
+      coordinates: {
+        x: box.x,
+        y: box.y,
+        width: box.width,
+        height: box.height,
+      },
     };
+
+    const entry = await structureBoxText(boxRawText, options.clinicId, gridItem);
+    entries.push(entry);
   }
 
-  // Fallback to table row parsing if selected
-  const rowEntries = await structureRegisterText(ocrText, options.clinicId);
   return {
-    entries: rowEntries,
-    engineUsed: "tesseract_local",
+    entries,
+    engineUsed: `tesseract_${openCVResult.detectionMethod}`,
     rawOcrText: ocrText,
+    openCVDetected: openCVResult.detectionMethod === "opencv_lines",
   };
 }

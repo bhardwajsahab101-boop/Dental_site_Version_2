@@ -22,6 +22,7 @@ export interface IScanEntry {
   croppedBoxUrl?: string;
   rawText?: string;
   status: "pending" | "approved" | "rejected" | "saved";
+  unreadableFields?: string[];
   fields: {
     fullName: IScanField<string>;
     age: IScanField<number>;
@@ -29,13 +30,18 @@ export interface IScanEntry {
     phone: IScanField<string>;
     visitDate: IScanField<string>;
     patientCode: IScanField<string>;
+    chiefComplaint?: IScanField<string>;
     treatment: IScanField<string>;
     dentalNotes: IScanField<string>;
     prescribedTreatment: IScanField<string>;
+    prescribedMedication?: IScanField<string>;
     amount: IScanField<number>;
     paymentStatus: IScanField<"paid" | "partial" | "unpaid">;
     followUpDate: IScanField<string>;
+    nextAppointmentDate?: IScanField<string>;
+    remarks?: IScanField<string>;
   };
+  confidenceScores?: Record<string, number>;
   savedPatientId?: mongoose.Types.ObjectId;
   savedPatientCode?: string;
   savedAppointmentId?: mongoose.Types.ObjectId;
@@ -52,12 +58,22 @@ export interface IScanEntry {
 
 export interface IScanDocument extends Document {
   clinicId: mongoose.Types.ObjectId;
+  batchId?: mongoose.Types.ObjectId;
+  pageNumber?: number;
   fileName: string;
   storedFileName: string;
   fileSize: number;
   mimeType: string;
-  status: "uploaded" | "processing" | "needs_review" | "partially_approved" | "completed" | "failed";
-  ocrEngine: "tesseract" | "gemini" | "hybrid" | "local";
+  status:
+    | "uploaded"
+    | "processing"
+    | "extraction_completed"
+    | "needs_review"
+    | "partially_approved"
+    | "approved"
+    | "completed"
+    | "failed";
+  ocrEngine: "tesseract" | "gemini" | "hybrid" | "local" | "apinex";
   language: "mixed" | "eng" | "hin";
   layoutType: "grid_boxes" | "table_rows";
   columnsDetected: number;
@@ -118,6 +134,8 @@ const scanEntrySchema = new Schema<IScanEntry>(
       enum: ["pending", "approved", "rejected", "saved"],
       default: "pending",
     },
+    unreadableFields: [{ type: String }],
+    confidenceScores: { type: Schema.Types.Mixed },
     fields: {
       fullName: { type: scanFieldSchema, required: true },
       age: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
@@ -125,12 +143,16 @@ const scanEntrySchema = new Schema<IScanEntry>(
       phone: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       visitDate: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       patientCode: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
+      chiefComplaint: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       treatment: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       dentalNotes: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       prescribedTreatment: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
+      prescribedMedication: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       amount: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       paymentStatus: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       followUpDate: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
+      nextAppointmentDate: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
+      remarks: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
     },
     savedPatientId: { type: Schema.Types.ObjectId, ref: "Patient" },
     savedPatientCode: { type: String },
@@ -156,19 +178,37 @@ const scanDocumentSchema = new Schema<IScanDocument>(
       required: true,
       index: true,
     },
+    batchId: {
+      type: Schema.Types.ObjectId,
+      ref: "ScanBatch",
+      index: true,
+    },
+    pageNumber: {
+      type: Number,
+      default: 1,
+    },
     fileName: { type: String, required: true },
     storedFileName: { type: String, required: true },
     fileSize: { type: Number, required: true },
     mimeType: { type: String, required: true },
     status: {
       type: String,
-      enum: ["uploaded", "processing", "needs_review", "partially_approved", "completed", "failed"],
+      enum: [
+        "uploaded",
+        "processing",
+        "extraction_completed",
+        "needs_review",
+        "partially_approved",
+        "approved",
+        "completed",
+        "failed",
+      ],
       default: "uploaded",
       index: true,
     },
     ocrEngine: {
       type: String,
-      enum: ["tesseract", "gemini", "hybrid", "local"],
+      enum: ["tesseract", "gemini", "hybrid", "local", "apinex"],
       default: "tesseract",
     },
     language: {

@@ -77,3 +77,4 @@ registerTemplateSchema.pre("save", function () {
 export const RegisterTemplate =
   (mongoose.models.RegisterTemplate as Model<IRegisterTemplate>) ||
   mongoose.model<IRegisterTemplate>("RegisterTemplate", registerTemplateSchema);
+

@@ -4,6 +4,7 @@ import fs from "fs";
 import { getCurrentUser } from "@/src/lib/auth";
 import { connectDB } from "@/src/lib/mongodb";
 import { ScanDocument } from "@/src/models/ScanDocument";
+import { ScanBatch } from "@/src/models/ScanBatch";
 import { executeDocumentExtraction } from "@/src/lib/scanner/ocrPipeline";
 import { logActivity } from "@/src/lib/audit";
 
@@ -39,6 +40,8 @@ export async function POST(
     const templateId = body.templateId || scan.templateId;
     const preprocessingSettings = body.preprocessingSettings || scan.preprocessingSettings || {};
 
+    const testMode = body.testMode !== undefined ? !!body.testMode : false;
+
     const filePath = path.join(process.cwd(), "private_storage", "scans", scan.storedFileName);
     if (!fs.existsSync(filePath)) {
       return NextResponse.json({ success: false, message: "Document image missing from disk" }, { status: 404 });
@@ -55,6 +58,13 @@ export async function POST(
     scan.preprocessingSettings = preprocessingSettings;
     await scan.save();
 
+    if (scan.batchId) {
+      await ScanBatch.updateOne(
+        { _id: scan.batchId, clinicId: user.clinicId },
+        { status: "processing" }
+      );
+    }
+
     try {
       const result = await executeDocumentExtraction(filePath, {
         engine,
@@ -65,6 +75,7 @@ export async function POST(
         readingOrder,
         templateId: templateId ? String(templateId) : undefined,
         clinicId: String(user.clinicId),
+        testMode,
       });
 
       scan.entries = result.entries as any;
@@ -75,6 +86,23 @@ export async function POST(
       scan.errorMessage = result.entries.length === 0 ? "No legible patient entries detected in register boxes. Manual entry or re-scan recommended." : undefined;
 
       await scan.save();
+
+      // Update associated batch stats
+      if (scan.batchId) {
+        const batchPages = await ScanDocument.find({ batchId: scan.batchId, clinicId: user.clinicId });
+        const totalDetected = batchPages.reduce((acc, p) => acc + (p.detectedCount || 0), 0);
+        const totalApproved = batchPages.reduce((acc, p) => acc + (p.approvedCount || 0), 0);
+        const totalRejected = batchPages.reduce((acc, p) => acc + (p.rejectedCount || 0), 0);
+        await ScanBatch.updateOne(
+          { _id: scan.batchId, clinicId: user.clinicId },
+          {
+            totalDetected,
+            totalApproved,
+            totalRejected,
+            status: "needs_review",
+          }
+        );
+      }
 
       await logActivity(
         "PROCESS_REGISTER_SCAN",

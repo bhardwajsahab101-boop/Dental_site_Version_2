@@ -59,6 +59,7 @@ interface ScanEntry {
   boxCoordinates?: BoxCoords;
   rawText?: string;
   status: "pending" | "approved" | "rejected" | "saved";
+  unreadableFields?: string[];
   fields: {
     fullName: ScanField<string>;
     age: ScanField<number>;
@@ -72,6 +73,10 @@ interface ScanEntry {
     amount: ScanField<number>;
     paymentStatus: ScanField<"paid" | "partial" | "unpaid">;
     followUpDate: ScanField<string>;
+    chiefComplaint?: ScanField<string>;
+    prescribedMedication?: ScanField<string>;
+    nextAppointmentDate?: ScanField<string>;
+    remarks?: ScanField<string>;
   };
   savedPatientId?: string;
   savedPatientCode?: string;
@@ -110,8 +115,12 @@ interface TemplateOption {
 }
 
 export default function PatientScannerPage() {
-  const [activeTab, setActiveTab] = useState<"scanner" | "history">("scanner");
+  const [activeTab, setActiveTab] = useState<"scanner" | "batches" | "history">("scanner");
   const [scans, setScans] = useState<ScanDoc[]>([]);
+  const [batches, setBatches] = useState<any[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [testMode, setTestMode] = useState<boolean>(false);
+  const [batchName, setBatchName] = useState<string>("");
   const [activeScan, setActiveScan] = useState<ScanDoc | null>(null);
   const [templates, setTemplates] = useState<TemplateOption[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
@@ -134,7 +143,7 @@ export default function PatientScannerPage() {
   const [columnsCount, setColumnsCount] = useState<number>(2);
   const [rowsPerColumn, setRowsPerColumn] = useState<number>(4);
   const [readingOrder, setReadingOrder] = useState<"column_first" | "row_first">("column_first");
-  const [engine, setEngine] = useState<"tesseract" | "gemini" | "hybrid">("hybrid");
+  const [engine, setEngine] = useState<"apinex" | "tesseract" | "hybrid">("apinex");
   const [language, setLanguage] = useState<"mixed" | "eng" | "hin">("mixed");
 
   // Review & Verification
@@ -152,12 +161,15 @@ export default function PatientScannerPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [scansRes, tplRes] = await Promise.all([
+      const [scansRes, tplRes, batchesRes] = await Promise.all([
         fetch("/api/admin/scans"),
         fetch("/api/admin/scans/templates"),
+        fetch("/api/admin/scans/batches"),
       ]);
       const scansData = await scansRes.json();
       const tplData = await tplRes.json();
+      const batchesData = await batchesRes.json().catch(() => ({}));
+      if (batchesData.success) setBatches(batchesData.batches || []);
 
       if (scansData.success) setScans(scansData.scans || []);
       if (tplData.success && tplData.templates) {
@@ -308,6 +320,9 @@ export default function PatientScannerPage() {
       setProcessingStage("1/5: Uploading register photograph securely...");
 
       const formData = new FormData();
+      formData.append("testMode", String(testMode));
+      if (batchName) formData.append("batchName", batchName);
+      if (selectedFiles.length > 1) { selectedFiles.forEach(f => formData.append("files", f)); } else
       if (canvasRef.current && (rotation !== 0 || grayscale || brightness !== 0 || contrast !== 20)) {
         const blob = await new Promise<Blob | null>((resolve) =>
           canvasRef.current?.toBlob(resolve, "image/jpeg", 0.92)
@@ -353,6 +368,7 @@ export default function PatientScannerPage() {
           rowsPerColumn,
           readingOrder,
           templateId: selectedTemplateId || undefined,
+          testMode,
           preprocessingSettings: {
             brightness,
             contrast,
@@ -581,6 +597,53 @@ export default function PatientScannerPage() {
     }
   };
 
+  // Delete batch
+  const handleDeleteBatch = async (batchId: string) => {
+    if (!confirm("Are you sure you want to delete this batch and its pages?")) return;
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/admin/scans/batches/${batchId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message);
+      toast.success(data.message);
+      fetchData();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete batch");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // OpenCV Auto-Detect
+  const handleOpenCVAutoDetect = async () => {
+    if (!activeScan) {
+      toast.error("Please upload or open a register page first.");
+      return;
+    }
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/admin/scans/${activeScan._id}/detect-boxes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          autoDetectWithOpenCV: true,
+          columnsCount,
+          rowsPerColumn,
+          readingOrder,
+        }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message);
+      setActiveScan(data.scan);
+      setColumnsCount(data.scan.columnsDetected || columnsCount);
+      toast.success("OpenCV grid auto-detection complete!");
+    } catch (err: any) {
+      toast.error(err.message || "OpenCV auto-detection failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Confidence badge
   const renderConfidenceBadge = (confidence: number, flag?: string) => {
     if (flag === "missing" || confidence === 0) {
@@ -714,6 +777,7 @@ export default function PatientScannerPage() {
                       <input
                         ref={fileInputRef}
                         type="file"
+                        multiple
                         accept="image/jpeg,image/png,image/webp,image/heic"
                         className="hidden"
                         onChange={handleFileChange}
@@ -960,7 +1024,8 @@ export default function PatientScannerPage() {
                             onChange={(e: any) => setEngine(e.target.value)}
                             className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl"
                           >
-                            <option value="hybrid">Smart Hybrid (Vision + Local)</option>
+                            <option value="apinex">APInex Gemini 3.8 Flash (AI Vision)</option>
+                            <option value="hybrid">Smart Hybrid (OpenCV + APInex)</option>
                             <option value="tesseract">Local Tesseract (Offline & Free)</option>
                             <option value="gemini">Multilingual Vision AI</option>
                           </select>
@@ -1076,6 +1141,16 @@ export default function PatientScannerPage() {
                       >
                         <ArrowDownUp className="w-3.5 h-3.5 text-slate-500" />
                         <span>Order: {readingOrder === "column_first" ? "Col-by-Col" : "Row-by-Row"}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleOpenCVAutoDetect}
+                        disabled={loading}
+                        className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold flex items-center space-x-1.5 transition"
+                        title="Re-run OpenCV grid and box boundary detection"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-[#16A6A1]" />
+                        <span>Auto-Detect (OpenCV)</span>
                       </button>
 
                       <button
@@ -1684,8 +1759,167 @@ export default function PatientScannerPage() {
                 </div>
               )}
             </>
+          ) : activeTab === "batches" ? (
+            /* TAB 2: REGISTER BATCHES */
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h2 className="text-sm font-bold text-[#102C46]">
+                    Digitised Register Batches
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    Multi-page register batches, extraction status, and batch approval tracking
+                  </p>
+                </div>
+                <button
+                  onClick={fetchData}
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>Refresh Batches</span>
+                </button>
+              </div>
+
+              {loading ? (
+                <div className="p-12 text-center text-slate-400 text-xs flex flex-col items-center justify-center space-y-2">
+                  <RefreshCw className="w-5 h-5 animate-spin text-[#16A6A1]" />
+                  <span>Loading register batches...</span>
+                </div>
+              ) : batches.length === 0 ? (
+                <div className="p-12 text-center space-y-3">
+                  <div className="w-12 h-12 bg-slate-100 rounded-2xl mx-auto flex items-center justify-center text-slate-400">
+                    <LayoutGrid className="w-6 h-6" />
+                  </div>
+                  <p className="text-sm font-bold text-slate-700">No register batches found</p>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    Upload multiple register pages or specify a batch name when scanning to organize pages into batches.
+                  </p>
+                  <button
+                    onClick={() => setActiveTab("scanner")}
+                    className="px-4 py-2 bg-[#102C46] text-white rounded-xl text-xs font-bold shadow-sm"
+                  >
+                    Create New Batch
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-semibold">
+                      <tr>
+                        <th className="px-5 py-3.5">Batch Name & Code</th>
+                        <th className="px-5 py-3.5">Pages</th>
+                        <th className="px-5 py-3.5">Status</th>
+                        <th className="px-5 py-3.5">Mode</th>
+                        <th className="px-5 py-3.5">Box Breakdown</th>
+                        <th className="px-5 py-3.5">Date</th>
+                        <th className="px-5 py-3.5 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {batches.map((b) => (
+                        <tr key={b._id} className="hover:bg-slate-50/70 transition">
+                          <td className="px-5 py-3">
+                            <div className="font-bold text-slate-800">{b.batchName}</div>
+                            <div className="text-[11px] text-slate-400 font-mono">{b.batchCode}</div>
+                          </td>
+                          <td className="px-5 py-3">
+                            <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-md font-semibold text-xs">
+                              {b.totalPages || b.pages?.length || 0} page(s)
+                            </span>
+                          </td>
+                          <td className="px-5 py-3">
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                                b.status === "approved" || b.status === "completed"
+                                  ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                  : b.status === "partially_approved"
+                                  ? "bg-blue-50 text-blue-700 border border-blue-200"
+                                  : b.status === "needs_review"
+                                  ? "bg-amber-50 text-amber-700 border border-amber-200"
+                                  : b.status === "processing"
+                                  ? "bg-purple-50 text-purple-700 border border-purple-200"
+                                  : "bg-slate-100 text-slate-600"
+                              }`}
+                            >
+                              {b.status === "approved"
+                                ? "Approved"
+                                : b.status === "partially_approved"
+                                ? "Partially Approved"
+                                : b.status === "needs_review"
+                                ? "Needs Review"
+                                : b.status === "processing"
+                                ? "Processing..."
+                                : "Uploaded"}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3">
+                            {b.testMode ? (
+                              <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-purple-100 text-purple-800">
+                                🧪 Synthetic Test
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-100 text-emerald-800">
+                                🔒 Production Secure
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-5 py-3">
+                            <div className="text-slate-700 font-semibold">
+                              {b.totalApproved || 0} Saved / {b.totalDetected || 0} Detected
+                            </div>
+                            {b.totalRejected > 0 && (
+                              <div className="text-[11px] text-rose-600">
+                                {b.totalRejected} Rejected
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-5 py-3 text-slate-500">
+                            {new Date(b.createdAt).toLocaleDateString()}
+                          </td>
+                          <td className="px-5 py-3 text-right">
+                            <div className="flex items-center justify-end space-x-2">
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    setLoading(true);
+                                    const res = await fetch(`/api/admin/scans/batches/${b._id}`);
+                                    const data = await res.json();
+                                    if (data.success && data.batch.pages?.length > 0) {
+                                      setActiveScan(data.batch.pages[0]);
+                                      setActiveTab("scanner");
+                                      setSelectedBoxIndex(1);
+                                      toast.success(`Opened batch: ${b.batchName}`);
+                                    } else {
+                                      toast.error("No pages found in this batch.");
+                                    }
+                                  } catch (err) {
+                                    toast.error("Failed to open batch");
+                                  } finally {
+                                    setLoading(false);
+                                  }
+                                }}
+                                className="px-3 py-1 bg-[#102C46] hover:bg-[#102C46]/90 text-white rounded-lg text-xs font-semibold"
+                              >
+                                Review Batch
+                              </button>
+                              <button
+                                onClick={() => handleDeleteBatch(b._id)}
+                                className="p-1 text-slate-400 hover:text-rose-600 transition"
+                                title="Delete Batch"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           ) : (
-            /* TAB 2: REGISTER HISTORY & ARCHIVES */
+            /* TAB 3: REGISTER HISTORY & ARCHIVES */
             <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="p-5 border-b border-slate-100 flex items-center justify-between">
                 <div>
