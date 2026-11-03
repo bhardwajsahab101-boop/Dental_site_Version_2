@@ -8,16 +8,29 @@ export interface OpenCVGridResult {
   width?: number;
   height?: number;
   rotationAngle?: number;
+  layoutType: "COLUMN_BASED" | "BOX_BASED" | "FREE_FORM" | "MIXED_LAYOUT";
+  confidence: number;
+  qualityAssessment?: {
+    sharpness: number;
+    brightness: number;
+    contrast: number;
+    isBlurry: boolean;
+    isTooDark?: boolean;
+    isTooBright?: boolean;
+    qualityScore: number;
+  };
   pageBoundary?: { x: number; y: number; width: number; height: number };
   detectionMethod: "opencv_lines" | "hybrid_template_fallback" | "pure_template";
   columnsDetected: number;
   rowsDetected: number;
+  regionsDetected: number;
+  requiresManualReview: boolean;
   totalBoxes: number;
   readingOrder: "column_first" | "row_first";
   boxes: Array<{
     index: number;
-    colIndex: number;
-    rowIndex: number;
+    colIndex?: number;
+    rowIndex?: number;
     x: number;
     y: number;
     width: number;
@@ -51,21 +64,7 @@ export async function runOpenCVGridDetection(
 
   const args: string[] = [scriptPath, imagePath];
 
-  if (options.expectedCols && options.expectedCols > 0) {
-    args.push("--expected-cols", String(options.expectedCols));
-  }
-  if (options.readingOrder) {
-    args.push("--reading-order", options.readingOrder);
-  }
-  if (options.outputCropsDir) {
-    args.push("--output-crops-dir", options.outputCropsDir);
-  }
-  if (options.noDeskew) {
-    args.push("--no-deskew");
-  }
-
   return new Promise<OpenCVGridResult>((resolve) => {
-    // Attempt python, py, or python3
     const pythonCmd = process.platform === "win32" ? "python" : "python3";
 
     execFile(
@@ -83,8 +82,25 @@ export async function runOpenCVGridDetection(
 
         try {
           const parsed = JSON.parse(stdout.trim());
-          if (parsed.success && Array.isArray(parsed.boxes) && parsed.boxes.length > 0) {
-            return resolve(parsed as OpenCVGridResult);
+          if (parsed.success) {
+            return resolve({
+              success: true,
+              width: parsed.width,
+              height: parsed.height,
+              rotationAngle: parsed.rotationAngle || 0,
+              layoutType: parsed.layoutType || (parsed.columnsDetected >= 5 ? "COLUMN_BASED" : "BOX_BASED"),
+              confidence: parsed.confidence || 0.85,
+              qualityAssessment: parsed.qualityAssessment,
+              pageBoundary: parsed.pageBoundary,
+              detectionMethod: "opencv_lines",
+              columnsDetected: parsed.columnsDetected || 2,
+              rowsDetected: parsed.rowsDetected || 4,
+              regionsDetected: parsed.regionsDetected || (parsed.boxes?.length || 0),
+              requiresManualReview: parsed.requiresManualReview || false,
+              totalBoxes: parsed.boxes?.length || 0,
+              readingOrder,
+              boxes: parsed.boxes || [],
+            });
           }
           return resolve(fallbackToTemplateGrid(options.expectedCols || 2, readingOrder));
         } catch (parseErr) {
@@ -100,26 +116,29 @@ function fallbackToTemplateGrid(
   columns: number,
   readingOrder: "column_first" | "row_first"
 ): OpenCVGridResult {
-  const cols = columns > 0 ? columns : 2;
-  const rows = cols >= 2 ? 4 : 10;
-  const gridBoxes: BoxGridItem[] = generateGridBoxes(cols, rows, readingOrder);
+  const defaultRows = 4;
+  const boxes = generateGridBoxes(columns, defaultRows, readingOrder).map((b) => ({
+    index: b.boxIndex,
+    colIndex: b.colIndex,
+    rowIndex: b.rowIndex,
+    x: b.coordinates.x,
+    y: b.coordinates.y,
+    width: b.coordinates.width,
+    height: b.coordinates.height,
+    source: "hybrid_template_fallback",
+  }));
 
   return {
     success: true,
-    detectionMethod: "pure_template",
-    columnsDetected: cols,
-    rowsDetected: rows,
-    totalBoxes: gridBoxes.length,
+    detectionMethod: "hybrid_template_fallback",
+    layoutType: columns >= 5 ? "COLUMN_BASED" : "BOX_BASED",
+    confidence: 0.75,
+    columnsDetected: columns,
+    rowsDetected: defaultRows,
+    regionsDetected: boxes.length,
+    requiresManualReview: false,
+    totalBoxes: boxes.length,
     readingOrder,
-    boxes: gridBoxes.map((b) => ({
-      index: b.boxIndex,
-      colIndex: b.colIndex ?? b.col,
-      rowIndex: b.rowIndex ?? b.row,
-      x: b.coordinates.x,
-      y: b.coordinates.y,
-      width: b.coordinates.width,
-      height: b.coordinates.height,
-      source: "pure_template",
-    })),
+    boxes,
   };
 }

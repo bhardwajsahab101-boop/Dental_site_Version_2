@@ -175,8 +175,7 @@ function parseVisitDate(text: string): { date?: string; conf: number } {
     const iso = `${year}-${month}-${day}`;
     return { date: iso, conf: 90 };
   }
-  const today = new Date().toISOString().split("T")[0];
-  return { date: today, conf: 60 };
+  return { date: undefined, conf: 0 };
 }
 
 /**
@@ -676,7 +675,7 @@ Output strictly valid JSON array of boxes.`;
           age: item.age || { confidence: 0, flag: "missing" },
           gender: item.gender || { confidence: 0, flag: "missing" },
           phone: item.phone || { confidence: 0, flag: "missing" },
-          visitDate: item.visitDate || { value: new Date().toISOString().split("T")[0], confidence: 70, flag: "medium" },
+          visitDate: item.visitDate || { confidence: 0, flag: "missing" },
           patientCode: { confidence: 0, flag: "missing" },
           treatment: item.treatment || { confidence: 0, flag: "missing" },
           dentalNotes: item.dentalNotes || { confidence: 0, flag: "missing" },
@@ -722,28 +721,47 @@ async function mapAPInexPatientsToEntries(
   clinicId: string,
   openCVBoxes: Array<{ x: number; y: number; width: number; height: number }>,
   columnsCount: number,
-  readingOrder: "column_first" | "row_first"
+  readingOrder: "column_first" | "row_first",
+  layoutType: "COLUMN_BASED" | "BOX_BASED" | "FREE_FORM" | "MIXED_LAYOUT" = "COLUMN_BASED"
 ): Promise<IScanEntry[]> {
   const entries: IScanEntry[] = [];
   const rowsPerCol = Math.ceil(patients.length / (columnsCount || 2));
+  const isColumnBased = layoutType === "COLUMN_BASED" || columnsCount >= 5;
 
   for (let i = 0; i < patients.length; i++) {
     const p = patients[i];
-    const box = openCVBoxes[i] || {
-      x: ((i % columnsCount) * (100 / columnsCount)) + 2,
-      y: (Math.floor(i / columnsCount) * 20) + 4,
-      width: (100 / columnsCount) - 4,
-      height: 18,
-    };
+    
+    // For column-based tabular registers, each entry is a horizontal row
+    let box: { x: number; y: number; width: number; height: number };
+    if (isColumnBased) {
+      const totalRows = Math.max(patients.length, 1);
+      const rowHeight = Math.min(9.0, Math.max(4.0, 80 / totalRows));
+      const rowY = 13 + (i * (82 / totalRows));
+      box = {
+        x: 2.0,
+        y: Math.round(rowY * 10) / 10,
+        width: 96.0,
+        height: Math.round(rowHeight * 10) / 10,
+      };
+    } else {
+      box = openCVBoxes[i] || {
+        x: ((i % columnsCount) * (100 / columnsCount)) + 2,
+        y: (Math.floor(i / columnsCount) * 20) + 4,
+        width: (100 / columnsCount) - 4,
+        height: 18,
+      };
+    }
 
-    const colIndex = readingOrder === "column_first" ? Math.floor(i / rowsPerCol) : i % columnsCount;
-    const rowIndex = readingOrder === "column_first" ? i % rowsPerCol : Math.floor(i / columnsCount);
+    const colIndex = isColumnBased ? 0 : (readingOrder === "column_first" ? Math.floor(i / rowsPerCol) : i % columnsCount);
+    const rowIndex = isColumnBased ? i : (readingOrder === "column_first" ? i % rowsPerCol : Math.floor(i / columnsCount));
 
     const nameConf = Math.round((p.confidence?.name ?? 0.95) * 100);
     const ageConf = p.age != null ? Math.round((p.confidence?.age ?? 0.90) * 100) : 0;
     const phoneConf = p.phone ? Math.round((p.confidence?.phone ?? (p.phone.length === 10 ? 0.95 : 0.45)) * 100) : 0;
     const treatConf = p.treatment ? Math.round((p.confidence?.treatment ?? 0.95) * 100) : 0;
-    const amtConf = p.amount != null ? Math.round((p.confidence?.amount ?? 0.90) * 100) : 0;
+    const amtValue = p.amount != null ? p.amount : (p.fee != null ? p.fee : undefined);
+    const feeValue = p.fee != null ? p.fee : (p.amount != null ? p.amount : undefined);
+    const amtConf = amtValue != null ? Math.round((p.confidence?.amount ?? 0.90) * 100) : 0;
 
     const entry: IScanEntry = {
       entryIndex: i + 1,
@@ -760,6 +778,11 @@ async function mapAPInexPatientsToEntries(
       unreadableFields: p.unreadableFields || [],
       confidenceScores: p.confidence || {},
       fields: {
+        sNo: {
+          value: p.sNo || String(i + 1),
+          confidence: 95,
+          flag: "high",
+        },
         fullName: {
           value: p.name,
           confidence: nameConf,
@@ -781,9 +804,9 @@ async function mapAPInexPatientsToEntries(
           flag: phoneConf >= 85 ? "high" : phoneConf > 0 ? "uncertain" : "missing",
         },
         visitDate: {
-          value: p.visitDate || new Date().toISOString().split("T")[0],
-          confidence: 85,
-          flag: "high",
+          value: p.visitDate || undefined,
+          confidence: p.visitDate ? 90 : 0,
+          flag: p.visitDate ? "high" : "missing",
         },
         patientCode: {
           value: p.patientCode ?? undefined,
@@ -814,8 +837,13 @@ async function mapAPInexPatientsToEntries(
           confidence: p.prescribedMedication ? 80 : 0,
           flag: p.prescribedMedication ? "medium" : "missing",
         },
+        fee: {
+          value: feeValue,
+          confidence: amtConf,
+          flag: amtConf >= 80 ? "high" : amtConf > 0 ? "medium" : "missing",
+        },
         amount: {
-          value: p.amount ?? undefined,
+          value: amtValue,
           confidence: amtConf,
           flag: amtConf >= 80 ? "high" : amtConf > 0 ? "medium" : "missing",
         },
@@ -866,21 +894,29 @@ async function mapAPInexPatientsToEntries(
 }
 
 /**
- * Master Extraction Pipeline supporting Box-Based and Column-Based Registers with OpenCV & APInex
+ * Master Extraction Pipeline supporting Automatic Layout Classification, OpenCV & APInex
  */
 export async function executeDocumentExtraction(
   imagePath: string,
   options: OCRProcessingOptions
-): Promise<{ entries: IScanEntry[]; engineUsed: string; rawOcrText?: string; openCVDetected?: boolean }> {
-  const cols = options.columnsCount || 2;
-  const rows = options.rowsPerColumn || 4;
+): Promise<{
+  entries: IScanEntry[];
+  engineUsed: string;
+  rawOcrText?: string;
+  openCVDetected?: boolean;
+  layoutType: "COLUMN_BASED" | "BOX_BASED" | "FREE_FORM" | "MIXED_LAYOUT";
+  layoutMetadata: any;
+}> {
   const readingOrder = options.readingOrder || "column_first";
 
-  // 1. Run local OpenCV grid & box detection
+  // 1. Run local OpenCV grid, line, and image quality analysis
   const openCVResult = await runOpenCVGridDetection(imagePath, {
-    expectedCols: cols,
+    expectedCols: options.columnsCount,
     readingOrder,
   });
+
+  const cols = openCVResult.columnsDetected || options.columnsCount || 2;
+  const rows = openCVResult.rowsDetected || options.rowsPerColumn || 4;
 
   const boxesToUse = openCVResult.boxes.length > 0
     ? openCVResult.boxes
@@ -895,30 +931,46 @@ export async function executeDocumentExtraction(
         source: "pure_template",
       }));
 
-  // 2. APInex AI Vision Extraction (Primary AI Provider)
+  // 2. APInex AI Vision Extraction with Automatic Layout Analysis
   if (options.engine === "apinex" || options.engine === "gemini" || options.engine === "hybrid" || (!options.engine && process.env.APINEX_API_KEY)) {
     const apinexRes = await callAPInexRegisterExtraction({
       imagePath,
       columnsCount: openCVResult.columnsDetected || cols,
       readingOrder,
       totalBoxesExpected: boxesToUse.length,
+      layoutType: openCVResult.layoutType,
       testMode: options.testMode,
     });
 
     if (apinexRes.success && apinexRes.patients.length > 0) {
+      const finalLayoutType = apinexRes.layoutType || openCVResult.layoutType || "COLUMN_BASED";
       const entries = await mapAPInexPatientsToEntries(
         apinexRes.patients,
         options.clinicId,
         boxesToUse,
-        openCVResult.columnsDetected || cols,
-        readingOrder
+        openCVResult.columnsDetected || apinexRes.columnCount || cols,
+        readingOrder,
+        finalLayoutType
       );
+
+      const layoutMetadata = {
+        layoutType: finalLayoutType,
+        confidence: apinexRes.layoutConfidence || openCVResult.confidence || 0.92,
+        columnsDetected: apinexRes.columnCount || openCVResult.columnsDetected || 10,
+        rowsDetected: apinexRes.rowCount || openCVResult.rowsDetected || entries.length,
+        regionsDetected: openCVResult.regionsDetected || (entries.length * (openCVResult.columnsDetected || 10)),
+        requiresManualReview: openCVResult.requiresManualReview || false,
+        detectedHeaders: apinexRes.detectedColumns || [],
+        qualityAssessment: openCVResult.qualityAssessment,
+      };
 
       return {
         entries,
         engineUsed: apinexRes.modelUsed,
         rawOcrText: apinexRes.rawResponse,
         openCVDetected: openCVResult.detectionMethod === "opencv_lines",
+        layoutType: finalLayoutType,
+        layoutMetadata,
       };
     }
   }
@@ -955,10 +1007,22 @@ export async function executeDocumentExtraction(
     entries.push(entry);
   }
 
+  const layoutMetadata = {
+    layoutType: openCVResult.layoutType || "COLUMN_BASED",
+    confidence: openCVResult.confidence || 0.75,
+    columnsDetected: openCVResult.columnsDetected || cols,
+    rowsDetected: openCVResult.rowsDetected || rows,
+    regionsDetected: openCVResult.regionsDetected || entries.length,
+    requiresManualReview: openCVResult.requiresManualReview || false,
+    qualityAssessment: openCVResult.qualityAssessment,
+  };
+
   return {
     entries,
     engineUsed: `tesseract_${openCVResult.detectionMethod}`,
     rawOcrText: ocrText,
     openCVDetected: openCVResult.detectionMethod === "opencv_lines",
+    layoutType: openCVResult.layoutType || "COLUMN_BASED",
+    layoutMetadata,
   };
 }

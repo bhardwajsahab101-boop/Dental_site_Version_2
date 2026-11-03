@@ -82,8 +82,11 @@ export async function POST(
       scan.detectedCount = result.entries.length;
       scan.approvedCount = 0;
       scan.rejectedCount = 0;
+      scan.layoutType = (result.layoutType || scan.layoutType) as any;
+      scan.layoutMetadata = result.layoutMetadata;
+      scan.columnsDetected = result.layoutMetadata?.columnsDetected || scan.columnsDetected;
       scan.status = result.entries.length > 0 ? "needs_review" : "needs_review";
-      scan.errorMessage = result.entries.length === 0 ? "No legible patient entries detected in register boxes. Manual entry or re-scan recommended." : undefined;
+      scan.errorMessage = result.entries.length === 0 ? "No legible patient entries detected in register page. Manual entry or re-scan recommended." : undefined;
 
       await scan.save();
 

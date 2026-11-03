@@ -77,8 +77,8 @@ export default function AdminLayout({
         <Topbar />
 
         {/* Dynamic Page Content */}
-        <main className="flex-1 p-4 md:p-6 overflow-y-auto">
-          <div className="max-w-6xl mx-auto space-y-6">
+        <main className="flex-1 p-3 md:p-5 overflow-y-auto">
+          <div className={pathname === "/admin/patient-scanner" ? "w-full max-w-[1750px] mx-auto space-y-5" : "max-w-6xl mx-auto space-y-6"}>
             {children}
           </div>
         </main>

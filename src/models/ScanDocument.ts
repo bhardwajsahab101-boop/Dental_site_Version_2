@@ -24,6 +24,7 @@ export interface IScanEntry {
   status: "pending" | "approved" | "rejected" | "saved";
   unreadableFields?: string[];
   fields: {
+    sNo?: IScanField<string | number>;
     fullName: IScanField<string>;
     age: IScanField<number>;
     gender: IScanField<"Male" | "Female" | "Other">;
@@ -35,6 +36,7 @@ export interface IScanEntry {
     dentalNotes: IScanField<string>;
     prescribedTreatment: IScanField<string>;
     prescribedMedication?: IScanField<string>;
+    fee?: IScanField<number>;
     amount: IScanField<number>;
     paymentStatus: IScanField<"paid" | "partial" | "unpaid">;
     followUpDate: IScanField<string>;
@@ -56,6 +58,25 @@ export interface IScanEntry {
   rejectionReason?: string;
 }
 
+export interface ILayoutMetadata {
+  layoutType: "COLUMN_BASED" | "BOX_BASED" | "FREE_FORM" | "MIXED_LAYOUT";
+  confidence: number;
+  columnsDetected: number;
+  rowsDetected: number;
+  regionsDetected: number;
+  requiresManualReview: boolean;
+  detectedHeaders?: string[];
+  qualityAssessment?: {
+    sharpness: number;
+    brightness: number;
+    contrast: number;
+    isBlurry: boolean;
+    isTooDark?: boolean;
+    isTooBright?: boolean;
+    qualityScore: number;
+  };
+}
+
 export interface IScanDocument extends Document {
   clinicId: mongoose.Types.ObjectId;
   batchId?: mongoose.Types.ObjectId;
@@ -75,7 +96,8 @@ export interface IScanDocument extends Document {
     | "failed";
   ocrEngine: "tesseract" | "gemini" | "hybrid" | "local" | "apinex";
   language: "mixed" | "eng" | "hin";
-  layoutType: "grid_boxes" | "table_rows";
+  layoutType: "COLUMN_BASED" | "BOX_BASED" | "FREE_FORM" | "MIXED_LAYOUT" | "grid_boxes" | "table_rows";
+  layoutMetadata?: ILayoutMetadata;
   columnsDetected: number;
   readingOrder: "column_first" | "row_first";
   templateId?: mongoose.Types.ObjectId;
@@ -137,6 +159,7 @@ const scanEntrySchema = new Schema<IScanEntry>(
     unreadableFields: [{ type: String }],
     confidenceScores: { type: Schema.Types.Mixed },
     fields: {
+      sNo: { type: scanFieldSchema },
       fullName: { type: scanFieldSchema, required: true },
       age: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       gender: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
@@ -148,6 +171,7 @@ const scanEntrySchema = new Schema<IScanEntry>(
       dentalNotes: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       prescribedTreatment: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       prescribedMedication: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
+      fee: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       amount: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       paymentStatus: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       followUpDate: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
@@ -209,7 +233,7 @@ const scanDocumentSchema = new Schema<IScanDocument>(
     ocrEngine: {
       type: String,
       enum: ["tesseract", "gemini", "hybrid", "local", "apinex"],
-      default: "tesseract",
+      default: "apinex",
     },
     language: {
       type: String,
@@ -218,8 +242,18 @@ const scanDocumentSchema = new Schema<IScanDocument>(
     },
     layoutType: {
       type: String,
-      enum: ["grid_boxes", "table_rows"],
-      default: "grid_boxes",
+      enum: ["COLUMN_BASED", "BOX_BASED", "FREE_FORM", "MIXED_LAYOUT", "grid_boxes", "table_rows"],
+      default: "COLUMN_BASED",
+    },
+    layoutMetadata: {
+      layoutType: { type: String },
+      confidence: { type: Number, default: 0.9 },
+      columnsDetected: { type: Number },
+      rowsDetected: { type: Number },
+      regionsDetected: { type: Number },
+      requiresManualReview: { type: Boolean, default: false },
+      detectedHeaders: [{ type: String }],
+      qualityAssessment: { type: Schema.Types.Mixed },
     },
     columnsDetected: { type: Number, default: 2 },
     readingOrder: {

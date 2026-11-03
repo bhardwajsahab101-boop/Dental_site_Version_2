@@ -22,7 +22,7 @@ export async function POST(
 
     const { id } = await params;
     const body = await req.json().catch(() => ({}));
-    const { entryIndices } = body;
+    const { entryIndices, modifiedEntries } = body;
 
     await connectDB();
 
@@ -33,6 +33,24 @@ export async function POST(
 
     if (!scan) {
       return NextResponse.json({ success: false, message: "Scan not found" }, { status: 404 });
+    }
+
+    // Apply any client-modified edits before batch saving
+    if (modifiedEntries && Array.isArray(modifiedEntries)) {
+      for (const mod of modifiedEntries) {
+        const target = scan.entries.find((e) => (e.boxIndex || e.entryIndex) === (mod.boxIndex || mod.entryIndex));
+        if (target && mod.fields) {
+          for (const k of Object.keys(mod.fields)) {
+            const rawVal = mod.fields[k];
+            const val = typeof rawVal === "object" && rawVal !== null && "value" in rawVal ? rawVal.value : rawVal;
+            (target.fields as any)[k] = {
+              value: val,
+              confidence: 100,
+              flag: "high",
+            };
+          }
+        }
+      }
     }
 
     const targetEntries = scan.entries.filter((e) => {
@@ -59,7 +77,9 @@ export async function POST(
       const gender = entry.fields.gender.value || undefined;
       const treatmentName = entry.fields.treatment.value || "General Dental Consultation";
       const dentalNotes = entry.fields.dentalNotes.value || "Imported from register scan";
-      const amount = entry.fields.amount.value ? Number(entry.fields.amount.value) : 0;
+      const amount = entry.fields.fee?.value
+        ? Number(entry.fields.fee.value)
+        : (entry.fields.amount?.value ? Number(entry.fields.amount.value) : 0);
       const paymentStatus = entry.fields.paymentStatus.value || (amount > 0 ? "paid" : "unpaid");
 
       let visitDate = new Date();

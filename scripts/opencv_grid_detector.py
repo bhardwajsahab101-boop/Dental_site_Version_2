@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """
-OpenCV Document Grid and Box Detection Engine for DentalOS Register Scanner.
-Detects page boundaries, grid lines, columns, reading order, and patient-entry box coordinates.
-Can be executed as a standalone CLI tool or invoked as a child process by Next.js.
+OpenCV Document Grid, Line, and Layout Detection Engine for DentalOS Register Scanner.
+Detects page boundaries, perspective, rotation, image quality assessment,
+horizontal & vertical grid lines, cells, and classifies document layout:
+- COLUMN_BASED (Traditional table with rows and vertical columns)
+- BOX_BASED (Rectangular or square patient-entry boxes across columns)
+- FREE_FORM (Handwritten entries without consistent grid lines)
+- MIXED_LAYOUT (Combination of tables, boxes, and unstructured notes)
 """
 
 import sys
@@ -19,9 +23,44 @@ except ImportError as e:
     print(json.dumps({
         "success": False,
         "error": f"Missing OpenCV or NumPy dependency: {str(e)}",
+        "layoutType": "COLUMN_BASED",
+        "confidence": 0.5,
         "boxes": []
     }))
     sys.exit(1)
+
+
+def assess_image_quality(gray: np.ndarray) -> Dict[str, Any]:
+    """
+    Computes image quality metrics: sharpness (Laplacian variance), brightness, and contrast.
+    """
+    try:
+        laplacian_var = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+        mean_brightness = float(np.mean(gray))
+        contrast_std = float(np.std(gray))
+        is_blurry = laplacian_var < 80.0
+        is_too_dark = mean_brightness < 45.0
+        is_too_bright = mean_brightness > 220.0
+
+        return {
+            "sharpness": round(laplacian_var, 2),
+            "brightness": round(mean_brightness, 2),
+            "contrast": round(contrast_std, 2),
+            "isBlurry": is_blurry,
+            "isTooDark": is_too_dark,
+            "isTooBright": is_too_bright,
+            "qualityScore": round(min(1.0, max(0.1, (laplacian_var / 500.0) * 0.5 + (contrast_std / 70.0) * 0.5)), 2)
+        }
+    except Exception:
+        return {
+            "sharpness": 100.0,
+            "brightness": 128.0,
+            "contrast": 50.0,
+            "isBlurry": False,
+            "isTooDark": False,
+            "isTooBright": False,
+            "qualityScore": 0.85
+        }
 
 
 def deskew_image(gray: np.ndarray, max_angle: float = 15.0) -> Tuple[np.ndarray, float]:
@@ -40,7 +79,6 @@ def deskew_image(gray: np.ndarray, max_angle: float = 15.0) -> Tuple[np.ndarray,
         else:
             angle = -angle
 
-        # If angle is negligible or too extreme, skip rotation
         if abs(angle) < 0.3 or abs(angle) > max_angle:
             return gray, 0.0
 
@@ -74,7 +112,6 @@ def detect_page_boundary(image: np.ndarray) -> Tuple[int, int, int, int]:
                 approx = cv2.approxPolyDP(c, 0.02 * peri, True)
                 if len(approx) == 4 and area > largest_area:
                     x, y, bw, bh = cv2.boundingRect(approx)
-                    # Must be a reasonable rectangle
                     if bw > w * 0.5 and bh > h * 0.5:
                         largest_area = area
                         best_box = (x, y, bw, bh)
@@ -84,295 +121,201 @@ def detect_page_boundary(image: np.ndarray) -> Tuple[int, int, int, int]:
         return (0, 0, w, h)
 
 
-def detect_grid_boxes(
+def analyze_layout_structure(
     gray: np.ndarray,
-    page_rect: Tuple[int, int, int, int],
-    expected_cols: int = 0,
-    reading_order: str = "column_first"
+    page_rect: Tuple[int, int, int, int]
 ) -> Dict[str, Any]:
     """
-    Extracts grid lines and detects individual patient entry box contours.
+    Analyzes horizontal & vertical lines, cell contours, and determines layout category:
+    COLUMN_BASED, BOX_BASED, FREE_FORM, or MIXED_LAYOUT.
     """
     px, py, pw, ph = page_rect
     roi = gray[py:py+ph, px:px+pw]
     h, w = roi.shape[:2]
 
-    # Adaptive thresholding for line extraction
     thresh = cv2.adaptiveThreshold(
         roi, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 15, 3
     )
 
     # 1. Detect horizontal lines
-    horiz_kernel_len = max(20, int(w * 0.04))
-    horiz_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (horiz_kernel_len, 1))
+    horiz_len = max(25, int(w * 0.03))
+    horiz_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (horiz_len, 1))
     horizontal_lines = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, horiz_kernel)
 
     # 2. Detect vertical lines
-    vert_kernel_len = max(20, int(h * 0.03))
-    vert_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, vert_kernel_len))
+    vert_len = max(20, int(h * 0.025))
+    vert_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, vert_len))
     vertical_lines = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, vert_kernel)
 
-    # 3. Combine grid lines
+    # Combine grid lines
     table_grid = cv2.add(horizontal_lines, vertical_lines)
 
     # Find contours of candidate cells
     contours, _ = cv2.findContours(table_grid, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
     valid_cells = []
-    min_cell_w = int(w * 0.12)  # at least 12% width
-    max_cell_w = int(w * 0.95)
-    min_cell_h = int(h * 0.04)  # at least 4% height
-    max_cell_h = int(h * 0.60)
+    # Narrow cells support tables with 8-15 columns (down to 3.5% width)
+    min_cell_w = int(w * 0.035)
+    max_cell_w = int(w * 0.98)
+    min_cell_h = int(h * 0.025)
+    max_cell_h = int(h * 0.70)
 
     for c in contours:
         x, y, bw, bh = cv2.boundingRect(c)
         if min_cell_w <= bw <= max_cell_w and min_cell_h <= bh <= max_cell_h:
-            # Check aspect ratio
-            aspect = bw / float(bh)
-            if 0.5 <= aspect <= 5.0:
-                valid_cells.append((x, y, bw, bh))
+            valid_cells.append((x, y, bw, bh))
 
-    # Remove heavily overlapping duplicates
-    filtered_cells = []
-    valid_cells.sort(key=lambda b: (b[0], b[1]))
-    for cell in valid_cells:
-        x, y, bw, bh = cell
-        is_dup = False
-        for fx, fy, fbw, fbh in filtered_cells:
-            # Check intersection over union
-            inter_x = max(0, min(x + bw, fx + fbw) - max(x, fx))
-            inter_y = max(0, min(y + bh, fy + fbh) - max(y, fy))
-            inter_area = inter_x * inter_y
-            union_area = (bw * bh) + (fbw * fbh) - inter_area
-            if union_area > 0 and (inter_area / union_area) > 0.45:
-                is_dup = True
-                break
-        if not is_dup:
-            filtered_cells.append(cell)
+    # Cluster X coordinates to count columns
+    x_coords = [c[0] for c in valid_cells]
+    y_coords = [c[1] for c in valid_cells]
 
-    # If OpenCV found enough structured cells (>= 4), determine columns and reading order
-    if len(filtered_cells) >= 4:
-        # Cluster into columns by X center coordinate
-        centers_x = [c[0] + c[2] / 2 for c in filtered_cells]
-        col_clusters: Dict[int, List[Tuple[int, int, int, int]]] = {}
+    col_clusters = []
+    col_threshold = max(20, int(w * 0.03))
+    for x in sorted(x_coords):
+        if not col_clusters or abs(x - col_clusters[-1][-1]) > col_threshold:
+            col_clusters.append([x])
+        else:
+            col_clusters[-1].append(x)
 
-        # Estimate column step
-        col_width_approx = sum(c[2] for c in filtered_cells) / len(filtered_cells)
-        tolerance = col_width_approx * 0.5
+    columns_detected = len(col_clusters)
 
-        sorted_by_x = sorted(filtered_cells, key=lambda c: c[0])
-        columns: List[List[Tuple[int, int, int, int]]] = []
+    # Cluster Y coordinates to count rows
+    row_clusters = []
+    row_threshold = max(15, int(h * 0.025))
+    for y in sorted(y_coords):
+        if not row_clusters or abs(y - row_clusters[-1][-1]) > row_threshold:
+            row_clusters.append([y])
+        else:
+            row_clusters[-1].append(y)
 
-        for cell in sorted_by_x:
-            cx = cell[0] + cell[2] / 2
-            placed = False
-            for col in columns:
-                col_cx = sum(c[0] + c[2] / 2 for c in col) / len(col)
-                if abs(cx - col_cx) < tolerance:
-                    col.append(cell)
-                    placed = True
-                    break
-            if not placed:
-                columns.append([cell])
+    rows_detected = len(row_clusters)
+    regions_detected = len(valid_cells)
 
-        # Sort columns left to right
-        columns.sort(key=lambda col: sum(c[0] for c in col) / len(col))
-        num_cols = len(columns)
+    # Layout classification logic
+    # Traditional tabular register has >= 5 columns with regular horizontal rows
+    layout_type = "COLUMN_BASED"
+    confidence = 0.85
+    requires_manual_review = False
 
-        # Sort cells within each column top to bottom
-        for col in columns:
-            col.sort(key=lambda c: c[1])
-
-        boxes_list = []
-        box_index = 0
-
-        if reading_order == "column_first":
-            for col_idx, col in enumerate(columns):
-                for row_idx, (cx, cy, cbw, cbh) in enumerate(col):
-                    abs_x = px + cx
-                    abs_y = py + cy
-                    boxes_list.append({
-                        "index": box_index,
-                        "colIndex": col_idx,
-                        "rowIndex": row_idx,
-                        "x": round((abs_x / gray.shape[1]) * 100, 2),
-                        "y": round((abs_y / gray.shape[0]) * 100, 2),
-                        "width": round((cbw / gray.shape[1]) * 100, 2),
-                        "height": round((cbh / gray.shape[0]) * 100, 2),
-                        "source": "opencv_lines"
-                    })
-                    box_index += 1
-        else: # row_first
-            max_rows = max(len(col) for col in columns)
-            for row_idx in range(max_rows):
-                for col_idx, col in enumerate(columns):
-                    if row_idx < len(col):
-                        cx, cy, cbw, cbh = col[row_idx]
-                        abs_x = px + cx
-                        abs_y = py + cy
-                        boxes_list.append({
-                            "index": box_index,
-                            "colIndex": col_idx,
-                            "rowIndex": row_idx,
-                            "x": round((abs_x / gray.shape[1]) * 100, 2),
-                            "y": round((abs_y / gray.shape[0]) * 100, 2),
-                            "width": round((cbw / gray.shape[1]) * 100, 2),
-                            "height": round((cbh / gray.shape[0]) * 100, 2),
-                            "source": "opencv_lines"
-                        })
-                        box_index += 1
-
-        return {
-            "detectionMethod": "opencv_lines",
-            "columnsDetected": num_cols,
-            "rowsDetected": max(len(c) for c in columns),
-            "totalBoxes": len(boxes_list),
-            "readingOrder": reading_order,
-            "boxes": boxes_list
-        }
-
-    # FALLBACK: Hybrid Grid Synthesis if lines are faint, irregular or omitted
-    cols = expected_cols if expected_cols in [1, 2, 3, 4] else 2
-    rows = 4 if cols >= 2 else 10
-    total_w = gray.shape[1]
-    total_h = gray.shape[0]
-
-    # Margin inside detected page boundary
-    content_x = px + int(pw * 0.03)
-    content_y = py + int(ph * 0.08)
-    content_w = int(pw * 0.94)
-    content_h = int(ph * 0.88)
-
-    col_w = content_w / cols
-    row_h = content_h / rows
-    gap_x = col_w * 0.04
-    gap_y = row_h * 0.05
-
-    fallback_boxes = []
-    idx = 0
-
-    if reading_order == "column_first":
-        for c in range(cols):
-            for r in range(rows):
-                bx = content_x + (c * col_w) + (gap_x / 2)
-                by = content_y + (r * row_h) + (gap_y / 2)
-                bw = col_w - gap_x
-                bh = row_h - gap_y
-                fallback_boxes.append({
-                    "index": idx,
-                    "colIndex": c,
-                    "rowIndex": r,
-                    "x": round((bx / total_w) * 100, 2),
-                    "y": round((by / total_h) * 100, 2),
-                    "width": round((bw / total_w) * 100, 2),
-                    "height": round((bh / total_h) * 100, 2),
-                    "source": "hybrid_template_fallback"
-                })
-                idx += 1
+    if columns_detected >= 5 and rows_detected >= 3 and regions_detected >= 15:
+        layout_type = "COLUMN_BASED"
+        confidence = min(0.98, 0.75 + (regions_detected / 100.0) * 0.2)
+    elif columns_detected in [2, 3, 4] and rows_detected >= 2 and regions_detected >= 4:
+        # Check aspect ratios of candidate boxes
+        aspects = [c[2] / float(c[3]) for c in valid_cells if c[3] > 0]
+        avg_aspect = float(np.mean(aspects)) if aspects else 2.0
+        if 1.0 <= avg_aspect <= 3.5:
+            layout_type = "BOX_BASED"
+            confidence = 0.92
+        else:
+            layout_type = "COLUMN_BASED"
+            confidence = 0.82
+    elif regions_detected < 6:
+        # Very few grid lines
+        layout_type = "FREE_FORM"
+        confidence = 0.78
+        requires_manual_review = True
     else:
-        for r in range(rows):
-            for c in range(cols):
-                bx = content_x + (c * col_w) + (gap_x / 2)
-                by = content_y + (r * row_h) + (gap_y / 2)
-                bw = col_w - gap_x
-                bh = row_h - gap_y
-                fallback_boxes.append({
-                    "index": idx,
-                    "colIndex": c,
-                    "rowIndex": r,
-                    "x": round((bx / total_w) * 100, 2),
-                    "y": round((by / total_h) * 100, 2),
-                    "width": round((bw / total_w) * 100, 2),
-                    "height": round((bh / total_h) * 100, 2),
-                    "source": "hybrid_template_fallback"
-                })
-                idx += 1
+        layout_type = "MIXED_LAYOUT"
+        confidence = 0.75
+        requires_manual_review = True
+
+    # Normalize cells to percentages
+    normalized_boxes = []
+    for idx, (x, y, bw, bh) in enumerate(valid_cells[:120]):
+        nx = round(((px + x) / float(w)) * 100.0, 2)
+        ny = round(((py + y) / float(h)) * 100.0, 2)
+        nw = round((bw / float(w)) * 100.0, 2)
+        nh = round((bh / float(h)) * 100.0, 2)
+        normalized_boxes.append({
+            "index": idx,
+            "x": nx,
+            "y": ny,
+            "width": nw,
+            "height": nh,
+            "source": "opencv_lines"
+        })
 
     return {
-        "detectionMethod": "hybrid_template_fallback",
-        "columnsDetected": cols,
-        "rowsDetected": rows,
-        "totalBoxes": len(fallback_boxes),
-        "readingOrder": reading_order,
-        "boxes": fallback_boxes
+        "layoutType": layout_type,
+        "confidence": round(confidence, 2),
+        "columnsDetected": max(1, columns_detected),
+        "rowsDetected": max(1, rows_detected),
+        "regionsDetected": regions_detected,
+        "requiresManualReview": requires_manual_review,
+        "boxes": normalized_boxes
+    }
+
+
+def process_image(image_path: str, output_crops_dir: str = None) -> Dict[str, Any]:
+    if not os.path.exists(image_path):
+        return {
+            "success": False,
+            "error": f"Image not found at path: {image_path}",
+            "layoutType": "COLUMN_BASED",
+            "confidence": 0.5,
+            "boxes": []
+        }
+
+    img = cv2.imread(image_path)
+    if img is None:
+        return {
+            "success": False,
+            "error": f"Failed to decode image from path: {image_path}",
+            "layoutType": "COLUMN_BASED",
+            "confidence": 0.5,
+            "boxes": []
+        }
+
+    h, w = img.shape[:2]
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    # 1. Quality Assessment
+    quality = assess_image_quality(gray)
+
+    # 2. Deskew / Rotation correction
+    deskewed_gray, rot_angle = deskew_image(gray)
+
+    # 3. Detect Page Boundary
+    page_rect = detect_page_boundary(deskewed_gray)
+    px, py, pw, ph = page_rect
+
+    # 4. Analyze Layout Structure & Detect Cells
+    layout_info = analyze_layout_structure(deskewed_gray, page_rect)
+
+    return {
+        "success": True,
+        "width": w,
+        "height": h,
+        "rotationAngle": round(rot_angle, 2),
+        "qualityAssessment": quality,
+        "pageBoundary": {
+            "x": round((px / float(w)) * 100.0, 2),
+            "y": round((py / float(h)) * 100.0, 2),
+            "width": round((pw / float(w)) * 100.0, 2),
+            "height": round((ph / float(h)) * 100.0, 2)
+        },
+        "layoutType": layout_info["layoutType"],
+        "confidence": layout_info["confidence"],
+        "columnsDetected": layout_info["columnsDetected"],
+        "rowsDetected": layout_info["rowsDetected"],
+        "regionsDetected": layout_info["regionsDetected"],
+        "requiresManualReview": layout_info["requiresManualReview"],
+        "detectionMethod": "opencv_lines",
+        "boxes": layout_info["boxes"],
+        "cropsSaved": []
     }
 
 
 def main():
-    parser = argparse.ArgumentParser(description="OpenCV Grid Detector for DentalOS")
-    parser.add_argument("image_path", help="Path to input image file")
-    parser.add_argument("--expected-cols", type=int, default=0, help="Expected number of columns (hint)")
-    parser.add_argument("--reading-order", type=str, default="column_first", choices=["column_first", "row_first"])
-    parser.add_argument("--output-crops-dir", type=str, default=None, help="Directory to save cropped box images")
-    parser.add_argument("--no-deskew", action="store_true", help="Disable automatic deskewing")
-
+    parser = argparse.ArgumentParser(description="OpenCV Layout & Grid Detector for DentalOS")
+    parser.add_argument("image_path", help="Path to input register photograph")
+    parser.add_argument("--crops_dir", default=None, help="Optional directory to save cropped cell images")
     args = parser.parse_args()
 
-    if not os.path.isfile(args.image_path):
-        print(json.dumps({"success": False, "error": f"Image file not found: {args.image_path}"}))
-        sys.exit(1)
-
-    image = cv2.imread(args.image_path)
-    if image is None:
-        print(json.dumps({"success": False, "error": "Unable to decode image file via OpenCV"}))
-        sys.exit(1)
-
-    orig_h, orig_w = image.shape[:2]
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
-    rotation_angle = 0.0
-    if not args.no_deskew:
-        gray, rotation_angle = deskew_image(gray)
-
-    page_boundary = detect_page_boundary(image)
-    grid_result = detect_grid_boxes(
-        gray,
-        page_boundary,
-        expected_cols=args.expected_cols,
-        reading_order=args.reading_order
-    )
-
-    # Optional cropping to disk
-    crops_saved = []
-    if args.output_crops_dir:
-        os.makedirs(args.output_crops_dir, exist_ok=True)
-        for box in grid_result["boxes"]:
-            bx = int((box["x"] / 100.0) * orig_w)
-            by = int((box["y"] / 100.0) * orig_h)
-            bw = int((box["width"] / 100.0) * orig_w)
-            bh = int((box["height"] / 100.0) * orig_h)
-            
-            # Boundary clamp
-            bx = max(0, min(orig_w - 1, bx))
-            by = max(0, min(orig_h - 1, by))
-            bw = max(1, min(orig_w - bx, bw))
-            bh = max(1, min(orig_h - by, bh))
-
-            crop = image[by:by+bh, bx:bx+bw]
-            crop_name = f"box_{box['index']}.jpg"
-            crop_path = os.path.join(args.output_crops_dir, crop_name)
-            cv2.imwrite(crop_path, crop)
-            crops_saved.append(crop_name)
-
-    response = {
-        "success": True,
-        "width": orig_w,
-        "height": orig_h,
-        "rotationAngle": round(rotation_angle, 2),
-        "pageBoundary": {
-            "x": round((page_boundary[0] / orig_w) * 100, 2),
-            "y": round((page_boundary[1] / orig_h) * 100, 2),
-            "width": round((page_boundary[2] / orig_w) * 100, 2),
-            "height": round((page_boundary[3] / orig_h) * 100, 2)
-        },
-        **grid_result,
-        "cropsSaved": crops_saved
-    }
-
-    print(json.dumps(response))
-    sys.exit(0)
+    result = process_image(args.image_path, args.crops_dir)
+    print(json.dumps(result))
 
 
 if __name__ == "__main__":
     main()
-

@@ -81,7 +81,9 @@ export async function POST(
     const gender = entry.fields.gender.value || undefined;
     const treatmentName = entry.fields.treatment.value || "General Dental Consultation";
     const dentalNotes = entry.fields.dentalNotes.value || "Imported from handwritten patient register scan";
-    const amount = entry.fields.amount.value ? Number(entry.fields.amount.value) : 0;
+    const amount = entry.fields.fee?.value
+      ? Number(entry.fields.fee.value)
+      : (entry.fields.amount?.value ? Number(entry.fields.amount.value) : 0);
     const paymentStatus = entry.fields.paymentStatus.value || (amount > 0 ? "paid" : "unpaid");
 
     let visitDate = new Date();

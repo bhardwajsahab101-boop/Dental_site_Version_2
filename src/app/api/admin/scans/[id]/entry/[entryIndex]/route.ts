@@ -42,16 +42,14 @@ export async function PATCH(
       if (key === "status" || key === "fields") continue;
       const rawVal = incomingFields[key];
       const val = typeof rawVal === "object" && rawVal !== null && "value" in rawVal ? rawVal.value : rawVal;
-      if ((entry.fields as any)[key] !== undefined) {
-        (entry.fields as any)[key] = {
-          value: val,
-          confidence: 100, // Staff manually verified/edited
-          flag: "high",
-        };
-        // Remove from unreadableFields if previously flagged
-        if (entry.unreadableFields && entry.unreadableFields.includes(key)) {
-          entry.unreadableFields = entry.unreadableFields.filter((f) => f !== key);
-        }
+      (entry.fields as any)[key] = {
+        value: val,
+        confidence: 100, // Staff manually verified/edited
+        flag: "high",
+      };
+      // Remove from unreadableFields if previously flagged
+      if (entry.unreadableFields && entry.unreadableFields.includes(key)) {
+        entry.unreadableFields = entry.unreadableFields.filter((f) => f !== key);
       }
     }
 
