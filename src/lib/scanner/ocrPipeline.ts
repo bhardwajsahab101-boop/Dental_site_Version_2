@@ -1,7 +1,7 @@
 import { createWorker } from "tesseract.js";
 import path from "path";
 import fs from "fs";
-import { IScanEntry, IScanField, IBoxCoordinates } from "../../models/ScanDocument";
+import { IScanEntry } from "../../models/ScanDocument";
 import { findDuplicatePatient } from "./duplicateDetector";
 import { generateGridBoxes, BoxGridItem } from "./boxDetector";
 

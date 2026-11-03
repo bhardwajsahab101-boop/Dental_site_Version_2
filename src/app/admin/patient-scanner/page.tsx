@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef } from "react";
 import Sidebar from "../../../components/admin/Sidebar";
 import toast from "react-hot-toast";
 import {
-  ScanLine,
   Camera,
   Upload,
   RotateCw,
@@ -20,16 +19,10 @@ import {
   Link as LinkIcon,
   ZoomIn,
   ZoomOut,
-  Calendar,
-  Clock,
-  Coins,
   ChevronRight,
-  ShieldCheck,
   History,
   Trash2,
-  FileText,
   Grid,
-  Columns,
   ArrowDownUp,
   LayoutGrid,
   Crop,
