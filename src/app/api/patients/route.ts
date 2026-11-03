@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { connectDB } from "../../../lib/mongodb";
 import { Patient } from "../../../models/Patient";
 import { Appointment } from "../../../models/Appointment";
+import { Treatment } from "../../../models/treatment";
 import { Counter } from "../../../models/Counter";
+import { ScanDocument } from "../../../models/ScanDocument";
 import { getCurrentClinic } from "../../../lib/auth";
 import { Clinic } from "../../../models/Clinic";
 import { logActivity } from "../../../lib/audit";
@@ -173,17 +175,82 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, data: patient, appointment });
   } catch (error: any) {
     console.error("Error creating patient:", error);
- 
+
     const message =
       error?.message ||
       (typeof error === "string" ? error : "Failed to create patient.");
- 
+
     return NextResponse.json(
       {
         success: false,
         message,
         error: error?.name,
       },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE /api/patients - Clear all patients, linked appointments, treatments, and reset counter
+export async function DELETE(req: Request) {
+  try {
+    const clinicId = await getCurrentClinic();
+    if (!clinicId) {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized access" },
+        { status: 401 }
+      );
+    }
+
+    await connectDB();
+
+    // 1. Delete all patients for this clinic
+    const patientDeleteResult = await Patient.deleteMany({ clinicId });
+
+    // 2. Delete all appointments for this clinic
+    const appointmentDeleteResult = await Appointment.deleteMany({ clinicId });
+
+    // 3. Delete all treatments for this clinic
+    const treatmentDeleteResult = await Treatment.deleteMany({ clinicId });
+
+    // 4. Reset patient counter back to 0 so next patient starts from PAT-001
+    await Counter.findOneAndUpdate(
+      { name: `patient_${clinicId}` },
+      { $set: { sequence: 0 } },
+      { upsert: true }
+    );
+
+    // 5. Reset scan documents entries back to pending
+    await ScanDocument.updateMany(
+      { clinicId },
+      {
+        $set: {
+          approvedCount: 0,
+          status: "needs_review",
+          "entries.$[].status": "pending",
+          "entries.$[].savedPatientId": null,
+          "entries.$[].savedPatientCode": null,
+          "entries.$[].savedAppointmentId": null,
+        },
+      }
+    );
+
+    await logActivity(
+      "Clear All Patients",
+      `Cleared all ${patientDeleteResult.deletedCount} patients, ${appointmentDeleteResult.deletedCount} appointments, and reset numbering`,
+      String(clinicId),
+      "Patient"
+    );
+
+    return NextResponse.json({
+      success: true,
+      message: `Successfully cleared all ${patientDeleteResult.deletedCount} patients and reset numbering.`,
+      deletedCount: patientDeleteResult.deletedCount,
+    });
+  } catch (error: any) {
+    console.error("Error clearing patients:", error);
+    return NextResponse.json(
+      { success: false, message: error.message || "Failed to clear patients" },
       { status: 500 }
     );
   }

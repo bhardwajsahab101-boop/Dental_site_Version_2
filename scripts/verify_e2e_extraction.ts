@@ -29,6 +29,7 @@ async function verify() {
   console.log("Processing register:", imgPath);
 
   const result = await executeDocumentExtraction(imgPath, {
+    clinicId: "demo",
     engine: "apinex",
     language: "mixed",
     layoutType: "COLUMN_BASED",

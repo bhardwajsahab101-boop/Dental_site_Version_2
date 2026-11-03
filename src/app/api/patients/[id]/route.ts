@@ -3,6 +3,7 @@ import { connectDB } from "../../../../lib/mongodb";
 import { Patient } from "../../../../models/Patient";
 import { Appointment } from "../../../../models/Appointment";
 import { Treatment } from "../../../../models/treatment";
+import { ScanDocument } from "../../../../models/ScanDocument";
 import { getCurrentClinic, getCurrentUser } from "../../../../lib/auth";
 import { logActivity } from "../../../../lib/audit";
  
@@ -212,37 +213,61 @@ export async function DELETE(
       );
     }
  
-    const appointmentCount = await Appointment.countDocuments({
-      ...clinicFilter,
-      patientId: patient._id,
-    });
- 
-    if (appointmentCount > 0) {
-      return NextResponse.json(
-        {
-          success: false,
-          message:
-            "Cannot delete patient because appointments are linked to this patient.",
-        },
-        { status: 400 }
+    // Cascade delete linked appointments and treatments
+    await Appointment.updateMany(
+      { patientId: patient._id, clinicId },
+      { $set: { deletedAt: new Date(), deletedBy: currentUser.userId } }
+    );
+
+    await Treatment.updateMany(
+      { patientId: patient._id, clinicId },
+      { $set: { deletedAt: new Date(), deletedBy: currentUser.userId } }
+    );
+
+    // Support hard delete if requested via ?hard=true
+    const url = new URL(_req.url);
+    const hardDelete = url.searchParams.get("hard") === "true";
+
+    if (hardDelete) {
+      await Appointment.deleteMany({ patientId: patient._id, clinicId });
+      await Treatment.deleteMany({ patientId: patient._id, clinicId });
+      await Patient.deleteOne({ _id: patient._id, clinicId });
+    } else {
+      await Patient.findOneAndUpdate(
+        { _id: patient._id, clinicId, deletedAt: null },
+        { deletedAt: new Date(), deletedBy: currentUser.userId }
       );
     }
- 
-    await Patient.findOneAndUpdate(
-      { _id: patient._id, clinicId, deletedAt: null },
-      { deletedAt: new Date(), deletedBy: currentUser.userId }
-    );
- 
+
+    // Reset any scan entries pointing to this patient back to pending
+    try {
+      await ScanDocument.updateMany(
+        { clinicId, "entries.savedPatientId": patient._id },
+        {
+          $set: {
+            "entries.$[elem].status": "pending",
+            "entries.$[elem].savedPatientId": null,
+            "entries.$[elem].savedPatientCode": null,
+          },
+        },
+        {
+          arrayFilters: [{ "elem.savedPatientId": patient._id }],
+        }
+      );
+    } catch (e) {
+      console.warn("ScanDocument reset bypass on patient delete:", e);
+    }
+
     await logActivity(
       "Delete Patient",
       `Deleted patient: ${patient.fullName} (${patient.patientCode})`,
       String(patient._id),
       "Patient"
     );
- 
+
     return NextResponse.json({
       success: true,
-      message: "Patient deleted successfully",
+      message: "Patient and linked records deleted successfully",
     });
   } catch (error) {
     console.error("Error deleting patient:", error);

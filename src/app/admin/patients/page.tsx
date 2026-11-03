@@ -129,30 +129,71 @@ export default function PatientsPage() {
     }
   }, [showForm, bookAppointment]);
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      setError(null);
+  const fetchPatients = async () => {
+    setLoading(true);
+    setError(null);
 
-      try {
-        const res = await fetch("/api/patients", { cache: "no-store" });
-        const data = await res.json().catch(() => null);
+    try {
+      const res = await fetch("/api/patients", { cache: "no-store" });
+      const data = await res.json().catch(() => null);
 
-        if (!res.ok || !data?.success) {
-          throw new Error(data?.message || `Request failed (${res.status})`);
-        }
-
-        setPatients((data.data || []) as Patient[]);
-      } catch (e) {
-        console.error(e);
-        setError(e instanceof Error ? e.message : "Failed to load patients");
-      } finally {
-        setLoading(false);
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.message || `Request failed (${res.status})`);
       }
-    }
 
-    load();
+      setPatients((data.data || []) as Patient[]);
+    } catch (e) {
+      console.error(e);
+      setError(e instanceof Error ? e.message : "Failed to load patients");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPatients();
   }, []);
+
+  const handleClearAllPatients = async () => {
+    if (
+      !window.confirm(
+        "Are you sure you want to delete ALL patients? This will remove all patient records, appointments, treatments, and reset patient numbering back to PAT-001. This action cannot be undone."
+      )
+    ) {
+      return;
+    }
+    try {
+      setLoading(true);
+      const res = await fetch("/api/patients", { method: "DELETE" });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message);
+      toast.success(data.message || "All patients cleared successfully");
+      await fetchPatients();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to clear patients");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteSinglePatient = async (patientId: string, patientName: string) => {
+    if (
+      !window.confirm(
+        `Are you sure you want to delete patient "${patientName}" and all linked records?`
+      )
+    ) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/patients/${patientId}?hard=true`, { method: "DELETE" });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.message);
+      toast.success(data.message || "Patient deleted successfully");
+      await fetchPatients();
+    } catch (err: any) {
+      toast.error(err.message || "Failed to delete patient");
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -431,29 +472,43 @@ export default function PatientsPage() {
           </p>
         </div>
 
-        <button
-          onClick={() => {
-            setShowForm(!showForm);
-            setNotice(null);
-          }}
-          type="button"
-          className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm transition-all duration-200 ${showForm
-              ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
-              : "bg-indigo-600 hover:bg-indigo-700 text-white"
-            }`}
-        >
-          {showForm ? (
-            <>
-              <X className="w-4 h-4" />
-              Close Form
-            </>
-          ) : (
-            <>
-              <Plus className="w-4 h-4" />
-              Add Patient
-            </>
+        <div className="flex items-center gap-2">
+          {patients.length > 0 && (
+            <button
+              onClick={handleClearAllPatients}
+              type="button"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 shadow-sm transition-all duration-200 cursor-pointer"
+              title="Delete all patients, appointments, treatments and reset numbering"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Clear All Patients</span>
+            </button>
           )}
-        </button>
+
+          <button
+            onClick={() => {
+              setShowForm(!showForm);
+              setNotice(null);
+            }}
+            type="button"
+            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm transition-all duration-200 cursor-pointer ${showForm
+                ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
+                : "bg-indigo-600 hover:bg-indigo-700 text-white"
+              }`}
+          >
+            {showForm ? (
+              <>
+                <X className="w-4 h-4" />
+                Close Form
+              </>
+            ) : (
+              <>
+                <Plus className="w-4 h-4" />
+                Add Patient
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Modern SaaS Redesigned Registration Form Card */}
@@ -927,6 +982,14 @@ export default function PatientsPage() {
                           className="inline-flex items-center text-xs font-bold px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition-all"
                         >
                           Add Treatment
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteSinglePatient(String(patient._id), patient.fullName || "Patient")}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200 cursor-pointer"
+                          title="Delete Patient and linked records"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </td>

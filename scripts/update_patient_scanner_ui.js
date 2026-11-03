@@ -83,3 +83,4 @@ content = content.replace(oldBatchSave, newBatchSave);
 
 fs.writeFileSync(targetFile, content, 'utf8');
 console.log("Successfully updated imports and handlers in page.tsx");
+

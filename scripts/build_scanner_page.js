@@ -1453,3 +1453,4 @@ const finalFileContent = headerAndLogic + newComponentJSX + batchesAndHistory + 
 
 fs.writeFileSync(targetFile, finalFileContent, 'utf8');
 console.log("Successfully rebuilt patient-scanner page.tsx with single sidebar and dual review views!");
+

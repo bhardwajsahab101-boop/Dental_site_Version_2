@@ -11,7 +11,8 @@ export interface OCRProcessingOptions {
   engine?: "tesseract" | "gemini" | "hybrid" | "local" | "apinex";
   language?: "mixed" | "eng" | "hin";
   clinicId: string;
-  layoutType?: "grid_boxes" | "table_rows";
+  mimeType?: string;
+  layoutType?: "grid_boxes" | "table_rows" | "COLUMN_BASED" | "BOX_BASED" | "FREE_FORM" | "MIXED_LAYOUT";
   columnsCount?: number;
   rowsPerColumn?: number;
   readingOrder?: "column_first" | "row_first";

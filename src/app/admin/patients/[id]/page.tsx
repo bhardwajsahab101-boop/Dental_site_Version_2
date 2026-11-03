@@ -445,7 +445,7 @@ export default function PatientProfilePage({ params }: Props) {
     }
 
     try {
-      const res = await fetch(`/api/patients/${patient._id}`, {
+      const res = await fetch(`/api/patients/${patient._id}?hard=true`, {
         method: "DELETE",
       });
       const data = await res.json();
