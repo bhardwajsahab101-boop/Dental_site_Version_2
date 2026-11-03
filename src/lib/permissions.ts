@@ -64,6 +64,11 @@ export function hasPageAccess(role: string, pathname: string): boolean {
     return ["owner", "doctor", "admin"].includes(role);
   }
 
+  // Patient Register Scanner: Owner, Doctor, Receptionist, or Admin
+  if (normPath.startsWith("/admin/patient-scanner")) {
+    return ["owner", "doctor", "receptionist", "admin"].includes(role);
+  }
+
   // Patients: Owner, Doctor, Receptionist, or Admin
   if (normPath.startsWith("/admin/patients")) {
     return ["owner", "doctor", "receptionist", "admin"].includes(role);
@@ -134,6 +139,11 @@ export function hasApiAccess(role: string, pathname: string, method: string): bo
   // Analytics APIs: Owner only
   if (normPath.startsWith("/api/admin/analytics")) {
     return ["owner"].includes(role);
+  }
+
+  // Patient Register Scanner APIs: Accessible by all authenticated staff
+  if (normPath.startsWith("/api/admin/scans")) {
+    return ["owner", "doctor", "receptionist", "admin"].includes(role);
   }
 
   // Dashboard API: Accessible by all authenticated staff roles

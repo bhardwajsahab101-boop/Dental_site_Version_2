@@ -40,3 +40,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# private scanner uploads (patient privacy)
+private_storage/scans/*
+!private_storage/scans/.gitkeep
+
+# OCR traineddata
+*.traineddata

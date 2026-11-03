@@ -186,3 +186,4 @@ export default function GallerySection({ initialPhotos }: { initialPhotos?: Gall
     </section>
   );
 }
+

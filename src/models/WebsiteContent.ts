@@ -239,3 +239,4 @@ const websiteContentSchema = new Schema<IWebsiteContent>(
 export const WebsiteContent =
   (mongoose.models.WebsiteContent as Model<IWebsiteContent>) ||
   mongoose.model<IWebsiteContent>("WebsiteContent", websiteContentSchema);
+

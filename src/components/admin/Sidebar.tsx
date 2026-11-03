@@ -19,7 +19,8 @@ import {
   CreditCard,
   Globe,
   Image as ImageIcon,
-  MessageSquare
+  MessageSquare,
+  ScanLine
 } from "lucide-react";
 import { hasPageAccess } from "../../lib/permissions";
 
@@ -65,6 +66,7 @@ export default function Sidebar() {
     { name: "Website CMS", href: "/admin/content", icon: Globe },
     { name: "Clinic Gallery", href: "/admin/gallery", icon: ImageIcon },
     { name: "Patients", href: "/admin/patients", icon: Users },
+    { name: "Scan Register (AI)", href: "/admin/patient-scanner", icon: ScanLine },
     { name: "Calendar", href: "/admin/calendar", icon: Calendar },
     { name: "Finance & Billing", href: "/admin/finance", icon: Coins },
     { name: "Analytics", href: "/admin/analytics", icon: TrendingUp },

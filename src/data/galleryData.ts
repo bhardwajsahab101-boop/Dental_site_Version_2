@@ -57,3 +57,4 @@ export const INITIAL_GALLERY: GalleryPhoto[] = [
     isFeatured: true,
   },
 ];
+

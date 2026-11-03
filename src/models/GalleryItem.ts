@@ -57,3 +57,4 @@ const galleryItemSchema = new Schema<IGalleryItem>(
 export const GalleryItem =
   (mongoose.models.GalleryItem as Model<IGalleryItem>) ||
   mongoose.model<IGalleryItem>("GalleryItem", galleryItemSchema);
+

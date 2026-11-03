@@ -1,0 +1,220 @@
+import mongoose, { Schema, Document, Model } from "mongoose";
+
+export interface IScanField<T = string | number | undefined> {
+  value?: T;
+  confidence: number; // 0 to 100
+  flag?: "high" | "medium" | "low" | "uncertain" | "missing";
+}
+
+export interface IBoxCoordinates {
+  x: number; // percentage 0 - 100
+  y: number; // percentage 0 - 100
+  width: number; // percentage 0 - 100
+  height: number; // percentage 0 - 100
+}
+
+export interface IScanEntry {
+  entryIndex: number;
+  boxIndex?: number;
+  colIndex?: number;
+  rowIndex?: number;
+  boxCoordinates?: IBoxCoordinates;
+  croppedBoxUrl?: string;
+  rawText?: string;
+  status: "pending" | "approved" | "rejected" | "saved";
+  fields: {
+    fullName: IScanField<string>;
+    age: IScanField<number>;
+    gender: IScanField<"Male" | "Female" | "Other">;
+    phone: IScanField<string>;
+    visitDate: IScanField<string>;
+    patientCode: IScanField<string>;
+    treatment: IScanField<string>;
+    dentalNotes: IScanField<string>;
+    prescribedTreatment: IScanField<string>;
+    amount: IScanField<number>;
+    paymentStatus: IScanField<"paid" | "partial" | "unpaid">;
+    followUpDate: IScanField<string>;
+  };
+  savedPatientId?: mongoose.Types.ObjectId;
+  savedPatientCode?: string;
+  savedAppointmentId?: mongoose.Types.ObjectId;
+  duplicateMatch?: {
+    patientId: mongoose.Types.ObjectId;
+    patientCode: string;
+    fullName: string;
+    phone: string;
+    matchReason: string;
+    lastVisit?: Date;
+  };
+  rejectionReason?: string;
+}
+
+export interface IScanDocument extends Document {
+  clinicId: mongoose.Types.ObjectId;
+  fileName: string;
+  storedFileName: string;
+  fileSize: number;
+  mimeType: string;
+  status: "uploaded" | "processing" | "needs_review" | "partially_approved" | "completed" | "failed";
+  ocrEngine: "tesseract" | "gemini" | "hybrid" | "local";
+  language: "mixed" | "eng" | "hin";
+  layoutType: "grid_boxes" | "table_rows";
+  columnsDetected: number;
+  readingOrder: "column_first" | "row_first";
+  templateId?: mongoose.Types.ObjectId;
+  preprocessingSettings?: {
+    brightness?: number;
+    contrast?: number;
+    grayscale?: boolean;
+    rotation?: number;
+    sharpen?: boolean;
+  };
+  detectedCount: number;
+  approvedCount: number;
+  rejectedCount: number;
+  entries: IScanEntry[];
+  errorMessage?: string;
+  uploadedBy?: mongoose.Types.ObjectId;
+  uploadedByName: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const scanFieldSchema = new Schema(
+  {
+    value: Schema.Types.Mixed,
+    confidence: { type: Number, default: 0, min: 0, max: 100 },
+    flag: {
+      type: String,
+      enum: ["high", "medium", "low", "uncertain", "missing"],
+      default: "medium",
+    },
+  },
+  { _id: false }
+);
+
+const boxCoordinatesSchema = new Schema(
+  {
+    x: { type: Number, default: 0 },
+    y: { type: Number, default: 0 },
+    width: { type: Number, default: 100 },
+    height: { type: Number, default: 100 },
+  },
+  { _id: false }
+);
+
+const scanEntrySchema = new Schema<IScanEntry>(
+  {
+    entryIndex: { type: Number, required: true },
+    boxIndex: { type: Number },
+    colIndex: { type: Number },
+    rowIndex: { type: Number },
+    boxCoordinates: { type: boxCoordinatesSchema },
+    croppedBoxUrl: { type: String },
+    rawText: { type: String, default: "" },
+    status: {
+      type: String,
+      enum: ["pending", "approved", "rejected", "saved"],
+      default: "pending",
+    },
+    fields: {
+      fullName: { type: scanFieldSchema, required: true },
+      age: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
+      gender: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
+      phone: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
+      visitDate: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
+      patientCode: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
+      treatment: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
+      dentalNotes: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
+      prescribedTreatment: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
+      amount: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
+      paymentStatus: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
+      followUpDate: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
+    },
+    savedPatientId: { type: Schema.Types.ObjectId, ref: "Patient" },
+    savedPatientCode: { type: String },
+    savedAppointmentId: { type: Schema.Types.ObjectId, ref: "Appointment" },
+    duplicateMatch: {
+      patientId: { type: Schema.Types.ObjectId, ref: "Patient" },
+      patientCode: { type: String },
+      fullName: { type: String },
+      phone: { type: String },
+      matchReason: { type: String },
+      lastVisit: { type: Date },
+    },
+    rejectionReason: { type: String },
+  },
+  { _id: true }
+);
+
+const scanDocumentSchema = new Schema<IScanDocument>(
+  {
+    clinicId: {
+      type: Schema.Types.ObjectId,
+      ref: "Clinic",
+      required: true,
+      index: true,
+    },
+    fileName: { type: String, required: true },
+    storedFileName: { type: String, required: true },
+    fileSize: { type: Number, required: true },
+    mimeType: { type: String, required: true },
+    status: {
+      type: String,
+      enum: ["uploaded", "processing", "needs_review", "partially_approved", "completed", "failed"],
+      default: "uploaded",
+      index: true,
+    },
+    ocrEngine: {
+      type: String,
+      enum: ["tesseract", "gemini", "hybrid", "local"],
+      default: "tesseract",
+    },
+    language: {
+      type: String,
+      enum: ["mixed", "eng", "hin"],
+      default: "mixed",
+    },
+    layoutType: {
+      type: String,
+      enum: ["grid_boxes", "table_rows"],
+      default: "grid_boxes",
+    },
+    columnsDetected: { type: Number, default: 2 },
+    readingOrder: {
+      type: String,
+      enum: ["column_first", "row_first"],
+      default: "column_first",
+    },
+    templateId: { type: Schema.Types.ObjectId, ref: "RegisterTemplate" },
+    preprocessingSettings: {
+      brightness: { type: Number, default: 0 },
+      contrast: { type: Number, default: 0 },
+      grayscale: { type: Boolean, default: false },
+      rotation: { type: Number, default: 0 },
+      sharpen: { type: Boolean, default: false },
+    },
+    detectedCount: { type: Number, default: 0 },
+    approvedCount: { type: Number, default: 0 },
+    rejectedCount: { type: Number, default: 0 },
+    entries: [scanEntrySchema],
+    errorMessage: { type: String },
+    uploadedBy: { type: Schema.Types.ObjectId, ref: "User" },
+    uploadedByName: { type: String, default: "Staff" },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+// Pre-save tenant validation hook
+scanDocumentSchema.pre("save", function () {
+  if (!this.clinicId) {
+    throw new Error("clinicId is required for ScanDocument");
+  }
+});
+
+export const ScanDocument =
+  (mongoose.models.ScanDocument as Model<IScanDocument>) ||
+  mongoose.model<IScanDocument>("ScanDocument", scanDocumentSchema);

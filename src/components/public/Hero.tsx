@@ -169,3 +169,4 @@ export default function Hero({ clinic, content }: HeroProps) {
     </section>
   );
 }
+

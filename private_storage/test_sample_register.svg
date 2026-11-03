@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="700" style="background:#fefbf3; font-family:monospace;">
+    <rect width="1000" height="700" fill="#faf6e9"/>
+    <text x="50" y="50" font-size="22" font-weight="bold" fill="#102C46">ANIL SHARMA DENTAL HOSPITAL - DAILY PATIENT REGISTER</text>
+    <text x="50" y="80" font-size="14" fill="#64748B">Date: 02-Nov-2026 | Shift: Morning | Room: 1</text>
+    <line x1="50" y1="100" x2="950" y2="100" stroke="#102C46" stroke-width="2"/>
+    <text x="50" y="130" font-size="13" font-weight="bold" fill="#334155">S.No | Date       | Patient Name             | Age/Sex | Phone        | Treatment                     | Fee (Rs) | Notes</text>
+    <line x1="50" y1="145" x2="950" y2="145" stroke="#94A3B8" stroke-width="1"/>
+    <text x="50" y="180" font-size="13" fill="#0f172a">1.   | 02/11/2026 | Suresh Sharma            | 42/M    | 9811223344   | Root Canal Treatment (RCT)    | 2500 Paid | Molar pain</text>
+    <text x="50" y="230" font-size="13" fill="#0f172a">2.   | 02/11/2026 | Ayush Sharma | 35/M    | 8950817515 | Dental Cleaning &amp; Scaling   | 800 Paid  | Routine</text>
+    <text x="50" y="280" font-size="13" fill="#0f172a">3.   | 02/11/2026 | Sunita Devi              | 29/F    | 9899112233   | Tooth Composite Filling       | 1200 Paid | Cavity</text>
+    <text x="50" y="330" font-size="13" fill="#0f172a">4.   | 02/11/2026 | Harish Verma             | 55/M    | 9711002288   | Tooth Extraction              | 500 Paid  | Lower incisor</text>
+    <text x="50" y="380" font-size="13" fill="#0f172a">5.   | 02/11/2026 | Rajesh Kumar             | 48/M    | 9810998877   | Crown &amp; Bridge             | 4500 Paid | Upper bridge</text>
+    <line x1="50" y1="420" x2="950" y2="420" stroke="#CBD5E1" stroke-width="1"/>
+  </svg>

@@ -2,8 +2,8 @@ import mongoose, { Document, Schema, Model } from "mongoose";
 
 export interface ITreatment extends Document {
   clinicId: mongoose.Types.ObjectId;
-  patientId: Schema.Types.ObjectId;
-  appointmentId?: Schema.Types.ObjectId | null;
+  patientId: mongoose.Types.ObjectId;
+  appointmentId?: mongoose.Types.ObjectId | null;
 
   treatmentName: string;
   diagnosis: string;
@@ -158,4 +158,4 @@ treatmentSchema.pre("save", function () {
 
 export const Treatment =
   (mongoose.models.Treatment as Model<ITreatment>) ||
-  mongoose.model<ITreatment>("Treatment", treatmentSchema);
+  mongoose.model<ITreatment>("Treatment", treatmentSchema);

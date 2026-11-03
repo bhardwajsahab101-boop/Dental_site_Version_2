@@ -310,3 +310,4 @@ export const TREATMENT_CATEGORIES = [
   "Pediatric Dentistry",
   "Orthodontics",
 ];
+
