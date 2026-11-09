@@ -7,6 +7,16 @@ export interface IAppointment extends Document {
   appointmentDate: Date;
   appointmentTime: string;
   notes?: string;
+  // Physical Register Mode fields
+  sNo?: string | number;
+  daily?: string | number;
+  disease?: string;
+  treatment?: string;
+  cashRs?: number;
+  cashPaise?: string | number;
+  creditRs?: number;
+  creditPaise?: string | number;
+  remarks?: string;
   status: "requested" | "confirmed" | "arrived" | "in_treatment" | "completed" | "no_show" | "cancelled";
   deletedAt?: Date | null;
   deletedBy?: mongoose.Types.ObjectId | null;
@@ -59,6 +69,39 @@ const appointmentSchema = new Schema<IAppointment>(
     notes: {
       type: String,
       default: "",
+      trim: true,
+    },
+    // Physical Register Mode fields
+    sNo: {
+      type: Schema.Types.Mixed,
+    },
+    daily: {
+      type: Schema.Types.Mixed,
+    },
+    disease: {
+      type: String,
+      trim: true,
+    },
+    treatment: {
+      type: String,
+      trim: true,
+    },
+    cashRs: {
+      type: Number,
+      min: 0,
+    },
+    cashPaise: {
+      type: Schema.Types.Mixed,
+    },
+    creditRs: {
+      type: Number,
+      min: 0,
+    },
+    creditPaise: {
+      type: Schema.Types.Mixed,
+    },
+    remarks: {
+      type: String,
       trim: true,
     },
     deletedAt: {

@@ -220,7 +220,7 @@ export default function SubscriptionsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-            <CreditCard className="h-5 w-5 text-[#5f22e6]" />
+            <CreditCard className="h-5 w-5 text-[#14B8A6]" />
             SaaS Subscription Management
           </h1>
           <p className="text-slate-500 text-xs font-semibold mt-1">
@@ -386,7 +386,7 @@ export default function SubscriptionsPage() {
                       </td>
                       {/* Plan */}
                       <td className="py-4 px-4">
-                        <span className="font-bold text-[#5f22e6] bg-indigo-50/50 border border-indigo-100/50 px-2.5 py-0.5 rounded-lg text-[9.5px] uppercase">
+                        <span className="font-bold text-[#0D9488] bg-[#CCFBF1] border border-[#14B8A6]/20 px-2.5 py-0.5 rounded-lg text-[9.5px] uppercase">
                           {sub.subscriptionPlan}
                         </span>
                       </td>
@@ -539,7 +539,7 @@ export default function SubscriptionsPage() {
             
             <div>
               <h3 className="text-[13px] font-black text-slate-850 uppercase tracking-widest flex items-center gap-1.5">
-                <Calendar className="h-4 w-4 text-[#5f22e6]" />
+                <Calendar className="h-4 w-4 text-[#14B8A6]" />
                 Extend Subscription
               </h3>
               <p className="text-[10px] text-slate-400 font-semibold mt-1">Tenant: {selectedTenant.name}</p>
@@ -561,7 +561,7 @@ export default function SubscriptionsPage() {
                       }}
                       className={`py-1.5 text-xs font-bold rounded-lg border transition-all cursor-pointer ${
                         extendDays === days && !customEndDate
-                          ? "bg-indigo-50 border-indigo-300 text-[#5f22e6]"
+                          ? "bg-[#CCFBF1] border-[#14B8A6] text-[#0D9488]"
                           : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-600"
                       }`}
                     >
@@ -598,7 +598,7 @@ export default function SubscriptionsPage() {
               <button
                 type="submit"
                 disabled={actionLoading}
-                className="flex-1 py-2 bg-[#5f22e6] hover:bg-[#4b18c0] text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center justify-center border-0"
+                className="flex-1 py-2 bg-[#14B8A6] hover:bg-[#0D9488] text-white rounded-xl text-xs font-bold shadow-2xs hover:shadow-xs transition-all cursor-pointer flex items-center justify-center border-0"
               >
                 {actionLoading ? "Processing..." : "Confirm Extension"}
               </button>
@@ -624,7 +624,7 @@ export default function SubscriptionsPage() {
             
             <div>
               <h3 className="text-[13px] font-black text-slate-850 uppercase tracking-widest flex items-center gap-1.5">
-                <Settings className="h-4 w-4 text-[#5f22e6]" />
+                <Settings className="h-4 w-4 text-[#14B8A6]" />
                 Modify Subscription Settings
               </h3>
               <p className="text-[10px] text-slate-400 font-semibold mt-1">Tenant: {selectedTenant.name}</p>
@@ -673,7 +673,7 @@ export default function SubscriptionsPage() {
               <button
                 type="submit"
                 disabled={actionLoading}
-                className="flex-1 py-2 bg-[#5f22e6] hover:bg-[#4b18c0] text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center justify-center border-0"
+                className="flex-1 py-2 bg-[#14B8A6] hover:bg-[#0D9488] text-white rounded-xl text-xs font-bold shadow-2xs hover:shadow-xs transition-all cursor-pointer flex items-center justify-center border-0"
               >
                 {actionLoading ? "Saving..." : "Save Settings"}
               </button>

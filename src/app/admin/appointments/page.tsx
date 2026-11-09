@@ -5,7 +5,8 @@ import toast from "react-hot-toast";
 import {
   Loader2,
   RefreshCw,
-  FilterX
+  FilterX,
+  CalendarCheck
 } from "lucide-react";
 import StatsCards from "../../../components/admin/StatsCards";
 import SearchFilterUI from "../../../components/admin/SearchFilterUI";
@@ -97,7 +98,7 @@ export default function AppointmentsPage() {
         )
       );
 
-      toast.success(`Updated status to ${newStatus}`);
+      toast.success(`Updated status to ${newStatus.replace("_", " ")}`);
     } catch (err: unknown) {
       console.error(err);
       toast.error(err instanceof Error ? err.message : "Failed to update status");
@@ -168,20 +169,20 @@ export default function AppointmentsPage() {
       {/* Header section (Compact) */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Appointments</h1>
-          <p className="text-slate-500 text-[11px] font-medium">
-            Manage incoming schedule and update patients
+          <h1 className="text-xl font-extrabold text-[#14213D] tracking-tight">Appointments & Queue</h1>
+          <p className="text-[#64748B] text-xs font-medium">
+            Real-time schedule management, visit arrival tracking, and treatment triage
           </p>
         </div>
         <button
           onClick={fetchAppointments}
           disabled={loading}
-          className="inline-flex items-center justify-center space-x-1.5 bg-white hover:bg-slate-50 border border-slate-100 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-700 shadow-sm transition-colors disabled:opacity-50"
+          className="inline-flex items-center justify-center space-x-1.5 bg-white hover:bg-[#F4F7FA] border border-[#E2E8F0] px-3.5 py-1.5 rounded-lg text-xs font-semibold text-[#182230] shadow-2xs transition-colors disabled:opacity-50 cursor-pointer"
         >
           {loading ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-600" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-[#14B8A6]" />
           ) : (
-            <RefreshCw className="h-3.5 w-3.5 text-slate-500" />
+            <RefreshCw className="h-3.5 w-3.5 text-[#64748B]" />
           )}
           <span>Refresh</span>
         </button>
@@ -191,16 +192,16 @@ export default function AppointmentsPage() {
       {loading && appointments.length === 0 ? (
         <div className="space-y-5">
           <StatsSkeleton />
-          <div className="h-20 bg-white rounded-xl border border-slate-100 animate-pulse" />
+          <div className="h-20 bg-white rounded-xl border border-[#E2E8F0] animate-pulse" />
           <AppointmentListSkeleton />
         </div>
       ) : error ? (
-        <div className="bg-rose-50 border border-rose-100 rounded-xl p-5 text-center space-y-3">
-          <h3 className="text-xs font-bold text-rose-800">Failed to connect</h3>
-          <p className="text-[11px] text-rose-600 leading-normal">{error}</p>
+        <div className="bg-rose-50 border border-rose-200 rounded-xl p-5 text-center space-y-3">
+          <h3 className="text-xs font-bold text-rose-800">Connection Error</h3>
+          <p className="text-xs text-rose-600 leading-normal">{error}</p>
           <button
             onClick={fetchAppointments}
-            className="bg-rose-600 hover:bg-rose-700 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm transition-colors"
+            className="bg-[#14213D] hover:bg-[#0D1629] text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer"
           >
             Retry Connection
           </button>
@@ -232,13 +233,13 @@ export default function AppointmentsPage() {
           />
 
           {/* List of appointments */}
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             {filteredAppointments.length === 0 ? (
-              <div className="bg-white border border-slate-100 rounded-xl p-8 text-center">
-                <FilterX className="h-8 w-8 text-slate-350 mx-auto mb-2.5" />
-                <h4 className="text-xs font-bold text-slate-800">No appointments match filters</h4>
-                <p className="text-slate-450 text-[11px] mt-1 max-w-xs mx-auto">
-                  Try adjusting your query or resetting status tabs.
+              <div className="bg-white border border-[#E2E8F0] rounded-xl p-10 text-center shadow-2xs">
+                <FilterX className="h-9 w-9 text-[#64748B] mx-auto mb-3" />
+                <h4 className="text-sm font-bold text-[#14213D]">No matching appointments</h4>
+                <p className="text-[#64748B] text-xs mt-1 max-w-sm mx-auto">
+                  No appointments match your search criteria. Try modifying your search or resetting the status filters.
                 </p>
                 <button
                   onClick={() => {
@@ -246,9 +247,9 @@ export default function AppointmentsPage() {
                     setSelectedStatus("all");
                     setSelectedService("all");
                   }}
-                  className="mt-3 text-[11px] font-semibold text-slate-900 bg-slate-50 hover:bg-slate-100 border border-slate-100 px-2.5 py-1 rounded-md transition-colors"
+                  className="mt-4 text-xs font-bold text-[#14B8A6] bg-[#CCFBF1] hover:bg-[#14B8A6] hover:text-white border border-[#14B8A6]/30 px-3.5 py-1.5 rounded-lg transition-all cursor-pointer"
                 >
-                  Clear Filters
+                  Reset All Filters
                 </button>
               </div>
             ) : (

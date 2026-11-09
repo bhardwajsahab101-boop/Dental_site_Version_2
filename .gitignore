@@ -47,3 +47,8 @@ private_storage/scans/*
 
 # OCR traineddata
 *.traineddata
+
+# Scratch and agent artifacts
+scratch/
+brain/
+

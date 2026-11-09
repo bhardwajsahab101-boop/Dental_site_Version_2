@@ -34,7 +34,7 @@ export default function SearchFilterUI({
   statusCounts,
 }: SearchFilterUIProps) {
   const tabs = [
-    { id: "all", name: "All", count: statusCounts.all },
+    { id: "all", name: "All Visits", count: statusCounts.all },
     { id: "requested", name: "Requested", count: statusCounts.requested },
     { id: "confirmed", name: "Confirmed", count: statusCounts.confirmed },
     { id: "arrived", name: "Arrived", count: statusCounts.arrived },
@@ -45,29 +45,29 @@ export default function SearchFilterUI({
   ];
 
   return (
-    <div className="space-y-3 bg-white border border-slate-100 p-3 rounded-xl shadow-sm">
+    <div className="space-y-3 bg-white border border-[#E2E8F0] p-3.5 rounded-xl shadow-2xs">
       {/* Top controls: Search & Service filter */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
         {/* Search */}
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#64748B]" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by patient name, phone, or email..."
-            className="w-full bg-slate-50/50 border border-slate-100 hover:border-slate-200/80 focus:border-slate-900 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:outline-none transition-colors"
+            placeholder="Search by patient name, contact number, or email..."
+            className="w-full bg-[#F4F7FA] border border-[#E2E8F0] hover:border-slate-300 focus:bg-white focus:border-[#14B8A6] focus:ring-2 focus:ring-[#14B8A6]/20 rounded-lg pl-9 pr-3.5 py-2 text-xs text-[#182230] placeholder-[#64748B] focus:outline-none transition-all font-medium"
           />
         </div>
 
         {/* Service filter */}
-        <div className="sm:w-48">
+        <div className="sm:w-56">
           <select
             value={selectedService}
             onChange={(e) => setSelectedService(e.target.value)}
-            className="w-full bg-slate-50/50 border border-slate-100 hover:border-slate-200/80 focus:border-slate-900 rounded-lg px-2.5 py-1.5 text-xs font-medium text-slate-700 focus:outline-none transition-colors"
+            className="w-full bg-[#F4F7FA] border border-[#E2E8F0] hover:border-slate-300 focus:bg-white focus:border-[#14B8A6] focus:ring-2 focus:ring-[#14B8A6]/20 rounded-lg px-3 py-2 text-xs font-semibold text-[#182230] focus:outline-none transition-all cursor-pointer"
           >
-            <option value="all">All Treatments</option>
+            <option value="all">All Dental Procedures</option>
             {services.map((service) => (
               <option key={service} value={service}>
                 {service}
@@ -78,26 +78,26 @@ export default function SearchFilterUI({
       </div>
 
       {/* Tabs list (Status filter) */}
-      <div className="flex items-center overflow-x-auto scrollbar-none border-t border-slate-50 pt-2 -mx-1 px-1">
-        <div className="flex space-x-1">
+      <div className="flex items-center overflow-x-auto scrollbar-none border-t border-slate-100 pt-2.5 -mx-1 px-1">
+        <div className="flex space-x-1.5">
           {tabs.map((tab) => {
             const active = selectedStatus === tab.id;
             return (
               <button
                 key={tab.id}
                 onClick={() => setSelectedStatus(tab.id)}
-                className={`flex items-center space-x-1.5 px-3 py-1 rounded-md text-[11px] font-semibold transition-all duration-150 shrink-0 ${
+                className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 shrink-0 cursor-pointer ${
                   active
-                    ? "bg-slate-900 text-white shadow-sm"
-                    : "text-slate-500 hover:text-slate-800 hover:bg-slate-50"
+                    ? "bg-[#14213D] text-white shadow-2xs"
+                    : "text-[#64748B] hover:text-[#182230] hover:bg-[#F4F7FA]"
                 }`}
               >
                 <span>{tab.name}</span>
                 <span
-                  className={`px-1.5 py-0.25 rounded text-[9px] font-bold ${
+                  className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
                     active
-                      ? "bg-slate-800 text-slate-200"
-                      : "bg-slate-100 text-slate-500 group-hover:bg-slate-200"
+                      ? "bg-[#14B8A6] text-white"
+                      : "bg-slate-100 text-[#64748B] group-hover:bg-slate-200"
                   }`}
                 >
                   {tab.count}

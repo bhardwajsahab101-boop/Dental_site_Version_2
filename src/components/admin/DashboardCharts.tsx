@@ -41,44 +41,68 @@ export default function DashboardCharts({
   treatmentsByType,
   appointmentStatusDist,
 }: DashboardChartsProps) {
+  // Cohesive healthcare status colors
+  const healthcareStatusPalette: Record<string, string> = {
+    requested: "#F59E0B",
+    pending: "#F59E0B",
+    confirmed: "#0284C7",
+    arrived: "#14B8A6",
+    in_treatment: "#14213D",
+    completed: "#10B981",
+    cancelled: "#E11D48",
+    no_show: "#94A3B8",
+  };
+
+  const formattedStatusDist = appointmentStatusDist.map((item) => ({
+    ...item,
+    color: healthcareStatusPalette[item.name.toLowerCase().replace(" ", "_")] || item.color || "#14B8A6",
+  }));
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* 1. Revenue By Month Bar Chart */}
-      <div className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm lg:col-span-2 space-y-4">
-        <div>
-          <h3 className="text-sm font-bold text-slate-800">Monthly Revenue</h3>
-          <p className="text-slate-400 text-[10px] font-semibold uppercase tracking-wider">
-            Total treatment billing per month (Last 6 Months)
-          </p>
+      <div className="bg-white border border-[#E2E8F0] p-5 rounded-xl shadow-2xs lg:col-span-2 space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div>
+            <h3 className="text-sm font-bold text-[#14213D]">Monthly Revenue Inflow</h3>
+            <p className="text-[#64748B] text-[11px] font-medium">
+              Completed procedure billing per calendar month (Last 6 Months)
+            </p>
+          </div>
+          <span className="text-[10px] font-bold uppercase tracking-wider bg-[#F0FDFA] text-[#0D9488] border border-[#CCFBF1] px-2.5 py-1 rounded-md">
+            INR ₹ Financials
+          </span>
         </div>
 
-        <div className="h-64 w-full text-[10px]">
-          {revenueByMonth.length === 0 || revenueByMonth.every(d => d.Revenue === 0) ? (
-            <div className="h-full flex items-center justify-center text-slate-400 italic">
-              No revenue data available yet.
+        <div className="h-64 w-full text-[11px]">
+          {revenueByMonth.length === 0 || revenueByMonth.every((d) => d.Revenue === 0) ? (
+            <div className="h-full flex items-center justify-center text-[#64748B] text-xs italic">
+              No revenue records logged in this timeframe.
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={revenueByMonth} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <XAxis dataKey="name" stroke="#94a3b8" tickLine={false} axisLine={false} />
+              <BarChart data={revenueByMonth} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+                <XAxis dataKey="name" stroke="#94A3B8" tickLine={false} axisLine={false} />
                 <YAxis
-                  stroke="#94a3b8"
+                  stroke="#94A3B8"
                   tickLine={false}
                   axisLine={false}
                   tickFormatter={(val) => `₹${val}`}
                 />
                 <Tooltip
                   contentStyle={{
-                    background: "#ffffff",
-                    border: "1px solid #f1f5f9",
-                    borderRadius: "12px",
-                    fontSize: "11px",
-                    boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                    background: "#FFFFFF",
+                    border: "1px solid #E2E8F0",
+                    borderRadius: "10px",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    color: "#182230",
+                    boxShadow: "0 4px 12px rgba(20, 33, 61, 0.08)",
                   }}
-                  formatter={(value: any) => [`₹${value.toLocaleString()}`, "Revenue"]}
-                  cursor={{ fill: "#f8fafc" }}
+                  formatter={(value: any) => [`₹${Number(value).toLocaleString()}`, "Collections"]}
+                  cursor={{ fill: "#F4F7FA" }}
                 />
-                <Bar dataKey="Revenue" fill="#4f46e5" radius={[6, 6, 0, 0]} barSize={36} />
+                <Bar dataKey="Revenue" fill="#14B8A6" radius={[6, 6, 0, 0]} barSize={34} />
               </BarChart>
             </ResponsiveContainer>
           )}
@@ -86,47 +110,48 @@ export default function DashboardCharts({
       </div>
 
       {/* 2. Status Distribution Donut Chart */}
-      <div className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm space-y-4">
-        <div>
-          <h3 className="text-sm font-bold text-slate-800">Status Allocation</h3>
-          <p className="text-slate-400 text-[10px] font-semibold uppercase tracking-wider">
-            Breakdown of appointments by state
+      <div className="bg-white border border-[#E2E8F0] p-5 rounded-xl shadow-2xs space-y-4">
+        <div className="border-b border-slate-100 pb-3">
+          <h3 className="text-sm font-bold text-[#14213D]">Appointment Pipeline</h3>
+          <p className="text-[#64748B] text-[11px] font-medium">
+            Status proportion of active clinical visits
           </p>
         </div>
 
-        <div className="h-64 w-full flex flex-col justify-center items-center text-[10px]">
-          {appointmentStatusDist.length === 0 ? (
-            <p className="text-[11px] text-slate-400 italic">No status data to present.</p>
+        <div className="h-64 w-full flex flex-col justify-center items-center text-[11px]">
+          {formattedStatusDist.length === 0 ? (
+            <p className="text-xs text-[#64748B] italic">No status distribution records available.</p>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={appointmentStatusDist}
+                  data={formattedStatusDist}
                   cx="50%"
                   cy="45%"
                   innerRadius={55}
                   outerRadius={75}
-                  paddingAngle={4}
+                  paddingAngle={3}
                   dataKey="value"
                 >
-                  {appointmentStatusDist.map((entry, index) => (
+                  {formattedStatusDist.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
                 <Tooltip
                   contentStyle={{
-                    background: "#ffffff",
-                    border: "1px solid #f1f5f9",
-                    borderRadius: "12px",
+                    background: "#FFFFFF",
+                    border: "1px solid #E2E8F0",
+                    borderRadius: "10px",
                     fontSize: "11px",
+                    boxShadow: "0 4px 12px rgba(20, 33, 61, 0.08)",
                   }}
                 />
                 <Legend
                   verticalAlign="bottom"
                   height={36}
                   iconType="circle"
-                  iconSize={6}
-                  wrapperStyle={{ fontSize: "10.5px", fontWeight: "600", color: "#64748b" }}
+                  iconSize={7}
+                  wrapperStyle={{ fontSize: "11px", fontWeight: "600", color: "#64748B" }}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -134,41 +159,49 @@ export default function DashboardCharts({
         </div>
       </div>
 
-      {/* 3. Treatments By Type Horizontal Bar Chart */}
-      <div className="bg-white border border-slate-100 p-5 rounded-2xl shadow-sm lg:col-span-3 space-y-4">
-        <div>
-          <h3 className="text-sm font-bold text-slate-800">Top Dental Procedures</h3>
-          <p className="text-slate-400 text-[10px] font-semibold uppercase tracking-wider">
-            Frequency distribution of treatments performed
-          </p>
+      {/* 3. Top Dental Procedures */}
+      <div className="bg-white border border-[#E2E8F0] p-5 rounded-xl shadow-2xs lg:col-span-3 space-y-4">
+        <div className="border-b border-slate-100 pb-3 flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-[#14213D]">Top Clinical Procedures</h3>
+            <p className="text-[#64748B] text-[11px] font-medium">
+              Frequency distribution of completed and scheduled dental treatments
+            </p>
+          </div>
+          <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider bg-slate-100 px-2 py-0.5 rounded">
+            Procedure Insights
+          </span>
         </div>
 
         <div className="space-y-3.5">
           {treatmentsByType.length === 0 ? (
-            <div className="py-8 text-center text-xs text-slate-400 italic">
-              No treatment records logged.
+            <div className="py-6 text-center text-xs text-[#64748B] italic">
+              No treatment procedures recorded yet.
             </div>
           ) : (
             treatmentsByType.map((t, idx) => {
               const maxVal = treatmentsByType[0]?.value || 1;
-              const percentage = Math.round((t.value / maxVal) * 100);
+              const percentage = Math.max(8, Math.round((t.value / maxVal) * 100));
 
-              const colorClasses = [
-                "bg-indigo-605",
-                "bg-sky-505",
-                "bg-emerald-505",
-                "bg-amber-505",
-                "bg-rose-505",
+              // Palette: Navy, Teal, Sky, Emerald, Amber
+              const barColors = [
+                "bg-[#14213D]",
+                "bg-[#14B8A6]",
+                "bg-sky-600",
+                "bg-emerald-600",
+                "bg-amber-600",
               ];
-              const barColor = colorClasses[idx % colorClasses.length];
+              const barColor = barColors[idx % barColors.length];
 
               return (
                 <div key={idx} className="space-y-1.5">
-                  <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
-                    <span className="truncate max-w-[250px]">{t.name}</span>
-                    <span>{t.value} {t.value === 1 ? 'treatment' : 'treatments'}</span>
+                  <div className="flex items-center justify-between text-xs font-semibold text-[#182230]">
+                    <span className="truncate max-w-[320px]">{t.name}</span>
+                    <span className="text-[#64748B] font-mono font-medium">
+                      {t.value} {t.value === 1 ? "case" : "cases"}
+                    </span>
                   </div>
-                  <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-2 w-full bg-[#F4F7FA] rounded-full overflow-hidden border border-[#E2E8F0]">
                     <div
                       className={`h-full rounded-full transition-all duration-500 ${barColor}`}
                       style={{ width: `${percentage}%` }}

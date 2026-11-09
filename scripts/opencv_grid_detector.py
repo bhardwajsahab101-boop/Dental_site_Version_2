@@ -94,6 +94,7 @@ def deskew_image(gray: np.ndarray, max_angle: float = 15.0) -> Tuple[np.ndarray,
 def detect_page_boundary(image: np.ndarray) -> Tuple[int, int, int, int]:
     """
     Detects outermost page boundary / paper edges if the photo contains desk background.
+    If the document already fills the frame, returns the full frame.
     """
     h, w = image.shape[:2]
     try:
@@ -107,12 +108,13 @@ def detect_page_boundary(image: np.ndarray) -> Tuple[int, int, int, int]:
 
         for c in contours:
             area = cv2.contourArea(c)
-            if area > total_area * 0.4:
+            if area > total_area * 0.6:
                 peri = cv2.arcLength(c, True)
                 approx = cv2.approxPolyDP(c, 0.02 * peri, True)
                 if len(approx) == 4 and area > largest_area:
                     x, y, bw, bh = cv2.boundingRect(approx)
-                    if bw > w * 0.5 and bh > h * 0.5:
+                    # Only crop if there is genuine background desk margin on all 4 sides
+                    if x > w * 0.05 and y > h * 0.05 and (x + bw) < w * 0.95 and (y + bh) < h * 0.95:
                         largest_area = area
                         best_box = (x, y, bw, bh)
 
@@ -121,13 +123,29 @@ def detect_page_boundary(image: np.ndarray) -> Tuple[int, int, int, int]:
         return (0, 0, w, h)
 
 
+def cluster_points(points: np.ndarray, min_gap: int = 30) -> List[int]:
+    """
+    Clusters consecutive line coordinates within min_gap pixels into a single central divider coordinate.
+    """
+    if len(points) == 0:
+        return []
+    clusters = [[int(points[0])]]
+    for p in points[1:]:
+        if int(p) - clusters[-1][-1] <= min_gap:
+            clusters[-1].append(int(p))
+        else:
+            clusters.append([int(p)])
+    return [int(np.mean(c)) for c in clusters]
+
+
 def analyze_layout_structure(
     gray: np.ndarray,
     page_rect: Tuple[int, int, int, int]
 ) -> Dict[str, Any]:
     """
-    Analyzes horizontal & vertical lines, cell contours, and determines layout category:
+    Analyzes horizontal & vertical lines, cell contours, dividers, and determines layout category:
     COLUMN_BASED, BOX_BASED, FREE_FORM, or MIXED_LAYOUT.
+    CRITICAL: For COLUMN_BASED registers, a patient entry is an entire horizontal ROW, NOT a single cell!
     """
     px, py, pw, ph = page_rect
     roi = gray[py:py+ph, px:px+pw]
@@ -138,12 +156,12 @@ def analyze_layout_structure(
     )
 
     # 1. Detect horizontal lines
-    horiz_len = max(25, int(w * 0.03))
+    horiz_len = max(25, int(w * 0.035))
     horiz_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (horiz_len, 1))
     horizontal_lines = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, horiz_kernel)
 
     # 2. Detect vertical lines
-    vert_len = max(20, int(h * 0.025))
+    vert_len = max(20, int(h * 0.03))
     vert_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, vert_len))
     vertical_lines = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, vert_kernel)
 
@@ -154,7 +172,6 @@ def analyze_layout_structure(
     contours, _ = cv2.findContours(table_grid, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
     valid_cells = []
-    # Narrow cells support tables with 8-15 columns (down to 3.5% width)
     min_cell_w = int(w * 0.035)
     max_cell_w = int(w * 0.98)
     min_cell_h = int(h * 0.025)
@@ -165,43 +182,32 @@ def analyze_layout_structure(
         if min_cell_w <= bw <= max_cell_w and min_cell_h <= bh <= max_cell_h:
             valid_cells.append((x, y, bw, bh))
 
-    # Cluster X coordinates to count columns
-    x_coords = [c[0] for c in valid_cells]
-    y_coords = [c[1] for c in valid_cells]
+    # Cluster projections to detect exact divider coordinates
+    horiz_proj = np.sum(horizontal_lines, axis=1)
+    vert_proj = np.sum(vertical_lines, axis=0)
 
-    col_clusters = []
-    col_threshold = max(20, int(w * 0.03))
-    for x in sorted(x_coords):
-        if not col_clusters or abs(x - col_clusters[-1][-1]) > col_threshold:
-            col_clusters.append([x])
-        else:
-            col_clusters[-1].append(x)
+    max_h_proj = float(np.max(horiz_proj)) if len(horiz_proj) > 0 else 1.0
+    max_v_proj = float(np.max(vert_proj)) if len(vert_proj) > 0 else 1.0
 
-    columns_detected = len(col_clusters)
+    peaks_y = np.where(horiz_proj > max_h_proj * 0.12)[0]
+    clustered_y = cluster_points(peaks_y, min_gap=max(15, int(h * 0.03)))
 
-    # Cluster Y coordinates to count rows
-    row_clusters = []
-    row_threshold = max(15, int(h * 0.025))
-    for y in sorted(y_coords):
-        if not row_clusters or abs(y - row_clusters[-1][-1]) > row_threshold:
-            row_clusters.append([y])
-        else:
-            row_clusters[-1].append(y)
+    peaks_x = np.where(vert_proj > max_v_proj * 0.12)[0]
+    clustered_x = cluster_points(peaks_x, min_gap=max(20, int(w * 0.025)))
 
-    rows_detected = len(row_clusters)
+    columns_detected = max(1, len(clustered_x) - 1) if len(clustered_x) >= 2 else 1
+    rows_detected = max(1, len(clustered_y) - 1) if len(clustered_y) >= 2 else 1
     regions_detected = len(valid_cells)
 
     # Layout classification logic
-    # Traditional tabular register has >= 5 columns with regular horizontal rows
     layout_type = "COLUMN_BASED"
     confidence = 0.85
     requires_manual_review = False
 
     if columns_detected >= 5 and rows_detected >= 3 and regions_detected >= 15:
         layout_type = "COLUMN_BASED"
-        confidence = min(0.98, 0.75 + (regions_detected / 100.0) * 0.2)
+        confidence = min(0.98, 0.78 + (regions_detected / 100.0) * 0.2)
     elif columns_detected in [2, 3, 4] and rows_detected >= 2 and regions_detected >= 4:
-        # Check aspect ratios of candidate boxes
         aspects = [c[2] / float(c[3]) for c in valid_cells if c[3] > 0]
         avg_aspect = float(np.mean(aspects)) if aspects else 2.0
         if 1.0 <= avg_aspect <= 3.5:
@@ -211,7 +217,6 @@ def analyze_layout_structure(
             layout_type = "COLUMN_BASED"
             confidence = 0.82
     elif regions_detected < 6:
-        # Very few grid lines
         layout_type = "FREE_FORM"
         confidence = 0.78
         requires_manual_review = True
@@ -220,30 +225,114 @@ def analyze_layout_structure(
         confidence = 0.75
         requires_manual_review = True
 
-    # Normalize cells to percentages
-    normalized_boxes = []
-    for idx, (x, y, bw, bh) in enumerate(valid_cells[:120]):
-        nx = round(((px + x) / float(w)) * 100.0, 2)
-        ny = round(((py + y) / float(h)) * 100.0, 2)
-        nw = round((bw / float(w)) * 100.0, 2)
-        nh = round((bh / float(h)) * 100.0, 2)
-        normalized_boxes.append({
-            "index": idx,
-            "x": nx,
-            "y": ny,
-            "width": nw,
-            "height": nh,
-            "source": "opencv_lines"
-        })
+    # Build boxes:
+    # CRITICAL FIX: For COLUMN_BASED, output ROW BOXES (each row spans all columns across table width).
+    # NEVER treat each cell as an independent patient!
+    output_boxes = []
+
+    if layout_type == "COLUMN_BASED" and len(clustered_y) >= 3 and len(clustered_x) >= 2:
+        table_x_left = clustered_x[0]
+        table_x_right = clustered_x[-1]
+        table_width = max(10, table_x_right - table_x_left)
+
+        # Header row is index 0: from clustered_y[0] to clustered_y[1]
+        data_divs = clustered_y[1:]
+        # Remove trailing page margin / bottom footer if past 85% height
+        if len(data_divs) >= 3 and data_divs[-1] > h * 0.88 and (data_divs[-1] - data_divs[-2]) > int(h * 0.08):
+            data_divs = data_divs[:-1]
+
+        # Calculate median row height to split any merged double-rows
+        if len(data_divs) >= 2:
+            heights = [data_divs[i+1] - data_divs[i] for i in range(len(data_divs)-1)]
+            median_h = float(np.median(heights)) if heights else float(h * 0.07)
+
+            refined_divs = [data_divs[0]]
+            for i in range(len(data_divs)-1):
+                y1 = data_divs[i]
+                y2 = data_divs[i+1]
+                diff = y2 - y1
+                if diff > median_h * 1.55:
+                    # Line was faint between two rows, split evenly
+                    refined_divs.append((y1 + y2) // 2)
+                refined_divs.append(y2)
+        else:
+            refined_divs = data_divs
+
+        for r_idx in range(len(refined_divs) - 1):
+            y_top = refined_divs[r_idx]
+            y_bot = refined_divs[r_idx + 1]
+            row_h = y_bot - y_top
+
+            nx = round(((px + table_x_left) / float(w)) * 100.0, 2)
+            ny = round(((py + y_top) / float(h)) * 100.0, 2)
+            nw = round((table_width / float(w)) * 100.0, 2)
+            nh = round((row_h / float(h)) * 100.0, 2)
+
+            output_boxes.append({
+                "index": r_idx + 1,
+                "rowIndex": r_idx,
+                "colIndex": 0,
+                "x": nx,
+                "y": ny,
+                "width": nw,
+                "height": nh,
+                "source": "opencv_table_row"
+            })
+
+        # If detected patient rows is < 3 (e.g. dividers were too faint), synthesize 10 row bands across table
+        if len(output_boxes) < 3:
+            output_boxes = []
+            header_bot = clustered_y[1] if len(clustered_y) > 1 else int(h * 0.13)
+            table_bot = clustered_y[-1] if len(clustered_y) > 2 else int(h * 0.88)
+            available_h = table_bot - header_bot
+            num_data_rows = max(5, rows_detected - 1)
+            band_h = available_h / float(num_data_rows)
+            for r in range(num_data_rows):
+                ry = header_bot + (r * band_h)
+                output_boxes.append({
+                    "index": r + 1,
+                    "rowIndex": r,
+                    "colIndex": 0,
+                    "x": round(((px + table_x_left) / float(w)) * 100.0, 2),
+                    "y": round(((py + ry) / float(h)) * 100.0, 2),
+                    "width": round((table_width / float(w)) * 100.0, 2),
+                    "height": round((band_h / float(h)) * 100.0, 2),
+                    "source": "opencv_row_band"
+                })
+    else:
+        # BOX_BASED or other layouts: each card box is an entry
+        for idx, (x, y, bw, bh) in enumerate(valid_cells[:120]):
+            nx = round(((px + x) / float(w)) * 100.0, 2)
+            ny = round(((py + y) / float(h)) * 100.0, 2)
+            nw = round((bw / float(w)) * 100.0, 2)
+            nh = round((bh / float(h)) * 100.0, 2)
+            output_boxes.append({
+                "index": idx + 1,
+                "rowIndex": idx // max(1, columns_detected),
+                "colIndex": idx % max(1, columns_detected),
+                "x": nx,
+                "y": ny,
+                "width": nw,
+                "height": nh,
+                "source": "opencv_box"
+            })
+
+    # Normalized dividers in percentage
+    norm_col_divs = [round((cx / float(w)) * 100.0, 2) for cx in clustered_x]
+    norm_row_divs = [round((cy / float(h)) * 100.0, 2) for cy in clustered_y]
 
     return {
         "layoutType": layout_type,
         "confidence": round(confidence, 2),
         "columnsDetected": max(1, columns_detected),
-        "rowsDetected": max(1, rows_detected),
+        "rowsDetected": len(output_boxes) if layout_type == "COLUMN_BASED" else max(1, rows_detected),
         "regionsDetected": regions_detected,
+        "totalCellsDetected": regions_detected,
+        "totalRowsDetected": len(output_boxes) if layout_type == "COLUMN_BASED" else max(1, rows_detected),
         "requiresManualReview": requires_manual_review,
-        "boxes": normalized_boxes
+        "columnDividers": norm_col_divs,
+        "rowDividers": norm_row_divs,
+        "boxes": output_boxes
     }
 
 
@@ -280,7 +369,7 @@ def process_image(image_path: str, output_crops_dir: str = None) -> Dict[str, An
     page_rect = detect_page_boundary(deskewed_gray)
     px, py, pw, ph = page_rect
 
-    # 4. Analyze Layout Structure & Detect Cells
+    # 4. Analyze Layout Structure & Detect Rows / Columns / Cells
     layout_info = analyze_layout_structure(deskewed_gray, page_rect)
 
     return {
@@ -300,7 +389,11 @@ def process_image(image_path: str, output_crops_dir: str = None) -> Dict[str, An
         "columnsDetected": layout_info["columnsDetected"],
         "rowsDetected": layout_info["rowsDetected"],
         "regionsDetected": layout_info["regionsDetected"],
+        "totalCellsDetected": layout_info["totalCellsDetected"],
+        "totalRowsDetected": layout_info["totalRowsDetected"],
         "requiresManualReview": layout_info["requiresManualReview"],
+        "columnDividers": layout_info.get("columnDividers", []),
+        "rowDividers": layout_info.get("rowDividers", []),
         "detectionMethod": "opencv_lines",
         "boxes": layout_info["boxes"],
         "cropsSaved": []

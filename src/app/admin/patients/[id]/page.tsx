@@ -628,29 +628,29 @@ export default function PatientProfilePage({ params }: Props) {
         <div className="space-y-1.5">
           <Link
             href="/admin/patients"
-            className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-800 transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#64748B] hover:text-[#14213D] transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             Back to Patients
           </Link>
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-bold text-slate-800 tracking-tight">
+            <h1 className="text-2xl font-extrabold text-[#14213D] tracking-tight">
               {patient.fullName}
             </h1>
-            <span className="px-2.5 py-0.5 text-xs font-mono font-semibold bg-slate-100 text-slate-700 border border-slate-200/50 rounded-full">
+            <span className="px-2.5 py-0.5 text-xs font-mono font-bold bg-[#14213D] text-white rounded-md shadow-2xs">
               {patient.patientCode || patient._id}
             </span>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          
           <a
             href={`tel:${patient.phone}`}
             title="Call Patient"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold shadow-sm transition-all hover:shadow duration-200 shrink-0 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-white hover:bg-[#F4F7FA] border border-[#E2E8F0] text-[#182230] rounded-xl text-xs font-bold shadow-2xs transition-all duration-150 shrink-0 cursor-pointer"
           >
-            📞 Call Patient
+            <Phone className="w-3.5 h-3.5 text-[#14B8A6]" />
+            Call Patient
           </a>
 
           {/* Quick Reminder Action */}
@@ -664,9 +664,10 @@ export default function PatientProfilePage({ params }: Props) {
             }}
             type="button"
             title="Send WhatsApp Reminder"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold shadow-sm transition-all hover:shadow duration-200 shrink-0 cursor-pointer text-slate-700"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-white hover:bg-[#F4F7FA] border border-[#E2E8F0] text-[#182230] rounded-xl text-xs font-bold shadow-2xs transition-all duration-150 shrink-0 cursor-pointer"
           >
-            ✉ Send Reminder
+            <Mail className="w-3.5 h-3.5 text-[#14B8A6]" />
+            Send Reminder
           </button>
 
           {/* Quick Invoice Action */}
@@ -681,9 +682,10 @@ export default function PatientProfilePage({ params }: Props) {
             }}
             type="button"
             title="Generate Invoice"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold shadow-sm transition-all hover:shadow duration-200 shrink-0 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-white hover:bg-[#F4F7FA] border border-[#E2E8F0] text-[#182230] rounded-xl text-xs font-bold shadow-2xs transition-all duration-150 shrink-0 cursor-pointer"
           >
-            🧾 Invoice
+            <Printer className="w-3.5 h-3.5 text-[#14B8A6]" />
+            Invoice
           </button>
 
           <button
@@ -699,7 +701,7 @@ export default function PatientProfilePage({ params }: Props) {
               setShowTreatmentModal(true);
             }}
             type="button"
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold shadow-sm transition-all hover:shadow duration-200 shrink-0 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#14213D] hover:bg-[#0D1629] text-white rounded-xl text-xs font-bold shadow-2xs transition-all duration-150 shrink-0 cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
             Add Treatment
@@ -709,7 +711,7 @@ export default function PatientProfilePage({ params }: Props) {
           <button
             onClick={() => setShowBookModal(true)}
             type="button"
-            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-700 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all hover:shadow duration-200 shrink-0 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#14B8A6] hover:bg-[#0D9488] text-white rounded-xl text-xs font-bold shadow-2xs transition-all duration-150 shrink-0 cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
             Book Appointment
@@ -719,86 +721,86 @@ export default function PatientProfilePage({ params }: Props) {
 
 
       {/* Top Level Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-        <div className="bg-white border border-slate-150 rounded-2xl p-4 shadow-sm flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0">
-            <Users className="w-4.5 h-4.5 text-indigo-600" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">
+        <div className="bg-white border border-[#E2E8F0] rounded-xl p-3.5 shadow-2xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-[#14213D]/5 border border-[#14213D]/10 flex items-center justify-center shrink-0">
+            <Users className="w-5 h-5 text-[#14213D]" />
           </div>
           <div className="min-w-0">
-            <span className="text-[9px] uppercase font-bold tracking-wider text-slate-400 block truncate">
+            <span className="text-[9px] uppercase font-bold tracking-wider text-[#64748B] block truncate">
               Appointments
             </span>
-            <span className="text-lg font-bold text-slate-800 block mt-0.5">
+            <span className="text-lg font-extrabold text-[#14213D] block mt-0.5">
               {totalAppointments}
             </span>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-150 rounded-2xl p-4 shadow-sm flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
-            <Calendar className="w-4.5 h-4.5 text-emerald-600" />
+        <div className="bg-white border border-[#E2E8F0] rounded-xl p-3.5 shadow-2xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center shrink-0">
+            <Calendar className="w-5 h-5 text-emerald-700" />
           </div>
           <div className="min-w-0">
-            <span className="text-[9px] uppercase font-bold tracking-wider text-slate-400 block truncate">
+            <span className="text-[9px] uppercase font-bold tracking-wider text-[#64748B] block truncate">
               Last Visit
             </span>
-            <span className="text-lg font-bold text-slate-800 block mt-0.5 truncate">
+            <span className="text-sm font-bold text-[#182230] block mt-0.5 truncate">
               {lastVisitDateLabel}
             </span>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-150 rounded-2xl p-4 shadow-sm flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
-            <Activity className="w-4.5 h-4.5 text-amber-600" />
+        <div className="bg-white border border-[#E2E8F0] rounded-xl p-3.5 shadow-2xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
+            <Activity className="w-5 h-5 text-amber-700" />
           </div>
           <div className="min-w-0">
-            <span className="text-[9px] uppercase font-bold tracking-wider text-slate-400 block truncate">
+            <span className="text-[9px] uppercase font-bold tracking-wider text-[#64748B] block truncate">
               Allergies Summary
             </span>
-            <span className="text-xs font-semibold text-slate-700 block mt-1 truncate" title={patient.allergies || "None declared"}>
+            <span className="text-xs font-semibold text-[#182230] block mt-1 truncate" title={patient.allergies || "None declared"}>
               {patient.allergies || "No allergies"}
             </span>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-150 rounded-2xl p-4 shadow-sm flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center shrink-0">
-            <span className="text-blue-600 font-bold text-sm">₹</span>
+        <div className="bg-white border border-[#E2E8F0] rounded-xl p-3.5 shadow-2xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-[#CCFBF1] border border-[#14B8A6]/20 flex items-center justify-center shrink-0">
+            <span className="text-[#0D9488] font-bold text-sm">₹</span>
           </div>
           <div className="min-w-0">
-            <span className="text-[9px] uppercase font-bold tracking-wider text-slate-400 block truncate">
+            <span className="text-[9px] uppercase font-bold tracking-wider text-[#64748B] block truncate">
               Total Billed
             </span>
-            <span className="text-lg font-bold text-slate-800 block mt-0.5 font-mono">
+            <span className="text-base font-extrabold text-[#14213D] block mt-0.5 font-mono">
               ₹{financialSummary.totalRevenue.toLocaleString()}
             </span>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-150 rounded-2xl p-4 shadow-sm flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-emerald-50 flex items-center justify-center shrink-0">
-            <span className="text-emerald-600 font-bold text-sm">₹</span>
+        <div className="bg-white border border-[#E2E8F0] rounded-xl p-3.5 shadow-2xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center shrink-0">
+            <span className="text-emerald-700 font-bold text-sm">₹</span>
           </div>
           <div className="min-w-0">
-            <span className="text-[9px] uppercase font-bold tracking-wider text-slate-400 block truncate">
+            <span className="text-[9px] uppercase font-bold tracking-wider text-[#64748B] block truncate">
               Total Collected
             </span>
-            <span className="text-lg font-bold text-slate-800 block mt-0.5 font-mono">
+            <span className="text-base font-extrabold text-emerald-700 block mt-0.5 font-mono">
               ₹{financialSummary.totalCollected.toLocaleString()}
             </span>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-150 rounded-2xl p-4 shadow-sm flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-rose-50 flex items-center justify-center shrink-0">
+        <div className="bg-white border border-[#E2E8F0] rounded-xl p-3.5 shadow-2xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-rose-50 border border-rose-200 flex items-center justify-center shrink-0">
             <span className="text-rose-600 font-bold text-sm">₹</span>
           </div>
           <div className="min-w-0">
-            <span className="text-[9px] uppercase font-bold tracking-wider text-slate-400 block truncate">
+            <span className="text-[9px] uppercase font-bold tracking-wider text-[#64748B] block truncate">
               Outstanding Due
             </span>
-            <span className="text-lg font-bold text-rose-650 block mt-0.5 font-mono">
+            <span className="text-base font-extrabold text-rose-600 block mt-0.5 font-mono">
               ₹{financialSummary.totalOutstanding.toLocaleString()}
             </span>
           </div>
@@ -812,54 +814,54 @@ export default function PatientProfilePage({ params }: Props) {
         <div className="lg:col-span-2 space-y-6">
 
           {/* Section B: Clinical Information */}
-          <section className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm space-y-4">
-            <div className="flex items-center gap-2 border-b border-slate-50 pb-3">
-              <Activity className="w-4.5 h-4.5 text-indigo-500" />
-              <h2 className="text-base font-semibold text-slate-800">Clinical Information</h2>
+          <section className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-2xs space-y-4">
+            <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+              <Activity className="w-4 h-4 text-[#14B8A6]" />
+              <h2 className="text-sm font-bold text-[#14213D]">Clinical Notes & Demographics</h2>
             </div>
 
-            <div className="grid grid-cols-1 gap-4">
+            <div className="grid grid-cols-1 gap-3.5">
               <div className="space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                  <MapPin className="w-3 h-3 text-slate-400" />
-                  Address
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748B] flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5 text-[#14B8A6]" />
+                  Residential Address
                 </span>
-                <p className="text-sm text-slate-700 bg-slate-50/50 border border-slate-100 rounded-xl p-3 whitespace-pre-wrap leading-relaxed">
-                  {patient.address || "No address on file."}
+                <p className="text-xs text-[#182230] bg-[#F4F7FA] border border-[#E2E8F0] rounded-lg p-3 whitespace-pre-wrap leading-relaxed">
+                  {patient.address || "No residential address on file."}
                 </p>
               </div>
 
               <div className="space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                  <FileText className="w-3 h-3 text-slate-400" />
-                  Medical Notes
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748B] flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-[#14B8A6]" />
+                  Medical History & Notes
                 </span>
-                <p className="text-sm text-slate-700 bg-slate-50/50 border border-slate-100 rounded-xl p-3 whitespace-pre-wrap leading-relaxed">
-                  {patient.medicalNotes || "No medical notes on file."}
+                <p className="text-xs text-[#182230] bg-[#F4F7FA] border border-[#E2E8F0] rounded-lg p-3 whitespace-pre-wrap leading-relaxed">
+                  {patient.medicalNotes || "No previous medical notes or systemic conditions recorded."}
                 </p>
               </div>
 
               <div className="space-y-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1">
-                  <ShieldAlert className="w-3 h-3 text-slate-400" />
-                  Known Allergies
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#64748B] flex items-center gap-1.5">
+                  <ShieldAlert className="w-3.5 h-3.5 text-[#14B8A6]" />
+                  Documented Allergies
                 </span>
-                <p className={`text-sm bg-slate-50/50 border rounded-xl p-3 whitespace-pre-wrap leading-relaxed ${patient.allergies
-                  ? "text-rose-700 border-rose-100/50 bg-rose-50/20"
-                  : "text-slate-700 border-slate-100"
+                <p className={`text-xs border rounded-lg p-3 whitespace-pre-wrap leading-relaxed ${patient.allergies
+                  ? "text-rose-700 border-rose-200 bg-rose-50"
+                  : "text-[#182230] border-[#E2E8F0] bg-[#F4F7FA]"
                   }`}>
-                  {patient.allergies || "No known allergies."}
+                  {patient.allergies || "No drug, food, or latex allergies reported."}
                 </p>
               </div>
             </div>
           </section>
 
           {/* Treatment History Section */}
-          <section className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-50 pb-3">
+          <section className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-2xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
-                <ClipboardList className="w-4.5 h-4.5 text-indigo-500" />
-                <h2 className="text-base font-semibold text-slate-800">Treatment History</h2>
+                <ClipboardList className="w-4.5 h-4.5 text-[#14B8A6]" />
+                <h2 className="text-sm font-bold text-[#14213D]">Treatment & Procedures Log</h2>
               </div>
               <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500">
                 <span className="bg-slate-50 border border-slate-100 px-2 py-0.5 rounded-full font-bold">

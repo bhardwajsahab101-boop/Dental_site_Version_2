@@ -49,10 +49,10 @@ export default function AdminLayout({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="flex flex-col items-center space-y-2">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-slate-900" />
-          <p className="text-slate-400 text-[11px] font-semibold">Verifying session...</p>
+      <div className="min-h-screen bg-[#F4F7FA] flex items-center justify-center p-4">
+        <div className="flex flex-col items-center space-y-3">
+          <div className="h-9 w-9 animate-spin rounded-full border-3 border-slate-200 border-t-[#14B8A6]" />
+          <p className="text-[#64748B] text-xs font-semibold tracking-wide">Securing DentalOS session...</p>
         </div>
       </div>
     );
@@ -67,7 +67,7 @@ export default function AdminLayout({
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col md:flex-row">
+    <div className="min-h-screen bg-[#F4F7FA] text-[#182230] flex flex-col md:flex-row antialiased">
       {/* Sidebar Navigation */}
       <Sidebar />
 
@@ -77,8 +77,8 @@ export default function AdminLayout({
         <Topbar />
 
         {/* Dynamic Page Content */}
-        <main className="flex-1 p-3 md:p-5 overflow-y-auto">
-          <div className={pathname === "/admin/patient-scanner" ? "w-full max-w-[1750px] mx-auto space-y-5" : "max-w-6xl mx-auto space-y-6"}>
+        <main className="flex-1 p-3.5 md:p-6 overflow-y-auto">
+          <div className={pathname === "/admin/patient-scanner" ? "w-full max-w-[1750px] mx-auto space-y-6" : "max-w-6xl mx-auto space-y-6"}>
             {children}
           </div>
         </main>

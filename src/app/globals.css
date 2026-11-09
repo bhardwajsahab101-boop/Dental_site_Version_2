@@ -1,44 +1,49 @@
 @import "tailwindcss";
 
 @theme {
-  --color-navy: #102C46;
-  --color-navy-dark: #0A1D30;
-  --color-navy-light: #1A3E61;
-  --color-teal: #16A6A1;
-  --color-teal-dark: #128884;
-  --color-teal-light: #E6F7F6;
-  --color-teal-muted: #D1F0EE;
-  --color-warm-white: #F8FAFC;
-  --color-surface: #FFFFFF;
-  --color-charcoal: #172B3A;
-  --color-muted-text: #64748B;
+  --color-navy: #14213D;
+  --color-navy-dark: #0D1629;
+  --color-navy-light: #1D2D52;
+  --color-teal: #14B8A6;
+  --color-teal-dark: #0D9488;
+  --color-teal-light: #CCFBF1;
+  --color-teal-muted: #F0FDFA;
+  --color-surface: #F4F7FA;
+  --color-pure-white: #FFFFFF;
+  --color-text-main: #182230;
+  --color-text-muted: #64748B;
   --color-card-border: #E2E8F0;
 }
 
 html {
   scroll-behavior: smooth;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  color: #172B3A;
-  background-color: #F8FAFC;
+  color: #182230;
+  background-color: #F4F7FA;
+}
+
+body {
+  color: #182230;
+  background-color: #F4F7FA;
 }
 
 section {
   scroll-margin-top: 96px;
 }
 
-/* Custom scrollbars */
+/* Custom Healthcare Scrollbars */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #F1F5F9;
+  background: #F4F7FA;
 }
 
 ::-webkit-scrollbar-thumb {
   background: #CBD5E1;
-  border-radius: 4px;
+  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -47,6 +52,87 @@ section {
 
 /* Accessible focus visible outlines */
 :focus-visible {
-  outline: 2px solid #16A6A1;
+  outline: 2px solid #14B8A6;
   outline-offset: 2px;
 }
+
+/* Selection highlight */
+::selection {
+  background-color: #CCFBF1;
+  color: #0F766E;
+}
+
+/* ==========================================================================
+   Physical Patient Register Print Styles (Traditional Ledger Format)
+   ========================================================================== */
+@media print {
+  @page {
+    size: landscape;
+    margin: 8mm;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 10pt !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide admin layout and interactive elements */
+  aside,
+  header,
+  nav,
+  button,
+  input,
+  select,
+  .no-print,
+  [role="navigation"],
+  .toaster {
+    display: none !important;
+  }
+
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  /* Ensure ledger print container spans full landscape width */
+  .printable-physical-register {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: block !important;
+  }
+
+  .printable-physical-register-header {
+    display: block !important;
+    margin-bottom: 8px !important;
+  }
+
+  .printable-physical-register table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto !important;
+  }
+
+  .printable-physical-register thead {
+    display: table-header-group !important;
+  }
+
+  .printable-physical-register tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .printable-physical-register th,
+  .printable-physical-register td {
+    border: 1px solid #334155 !important;
+    padding: 4px 6px !important;
+    font-size: 9pt !important;
+    color: #000000 !important;
+  }
+}
+

@@ -24,6 +24,10 @@ export interface OpenCVGridResult {
   columnsDetected: number;
   rowsDetected: number;
   regionsDetected: number;
+  totalCellsDetected?: number;
+  totalRowsDetected?: number;
+  columnDividers?: number[];
+  rowDividers?: number[];
   requiresManualReview: boolean;
   totalBoxes: number;
   readingOrder: "column_first" | "row_first";
@@ -54,7 +58,7 @@ export async function runOpenCVGridDetection(
   imagePath: string,
   options: OpenCVDetectOptions = {}
 ): Promise<OpenCVGridResult> {
-  const scriptPath = path.join(process.cwd(), "scripts", "opencv_grid_detector.py");
+  const scriptPath = path.join(/*turbopackIgnore: true*/ process.cwd(), "scripts", "opencv_grid_detector.py");
   const readingOrder = options.readingOrder || "column_first";
 
   // Check if python script exists and image exists
@@ -65,7 +69,15 @@ export async function runOpenCVGridDetection(
   const args: string[] = [scriptPath, imagePath];
 
   return new Promise<OpenCVGridResult>((resolve) => {
-    const pythonCmd = process.platform === "win32" ? "python" : "python3";
+    let pythonCmd = process.platform === "win32" ? "python" : "python3";
+    if (process.platform === "win32") {
+      const localPython = path.join(process.env.LOCALAPPDATA || "", "Python", "bin", "python.exe");
+      if (fs.existsSync(localPython)) {
+        pythonCmd = localPython;
+      } else if (process.env.PYTHON_PATH && fs.existsSync(process.env.PYTHON_PATH)) {
+        pythonCmd = process.env.PYTHON_PATH;
+      }
+    }
 
     execFile(
       pythonCmd,
@@ -96,6 +108,10 @@ export async function runOpenCVGridDetection(
               columnsDetected: parsed.columnsDetected || 2,
               rowsDetected: parsed.rowsDetected || 4,
               regionsDetected: parsed.regionsDetected || (parsed.boxes?.length || 0),
+              totalCellsDetected: parsed.totalCellsDetected || parsed.regionsDetected || 0,
+              totalRowsDetected: parsed.totalRowsDetected || parsed.rowsDetected || (parsed.boxes?.length || 0),
+              columnDividers: parsed.columnDividers || [],
+              rowDividers: parsed.rowDividers || [],
               requiresManualReview: parsed.requiresManualReview || false,
               totalBoxes: parsed.boxes?.length || 0,
               readingOrder,

@@ -1,6 +1,21 @@
 const mongoose = require("mongoose");
 const fs = require("fs");
-require("dotenv").config({ path: ".env.local" });
+// Load env without dotenv
+try {
+  const envContent = fs.readFileSync(".env.local", "utf8");
+  for (const line of envContent.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eqIdx = trimmed.indexOf("=");
+    if (eqIdx !== -1) {
+      const key = trimmed.substring(0, eqIdx).trim();
+      const val = trimmed.substring(eqIdx + 1).trim().replace(/^["']|["']$/g, "");
+      process.env[key] = val;
+    }
+  }
+} catch (e) {
+  console.warn("Could not read .env.local", e);
+}
 
 async function check() {
   await mongoose.connect(process.env.MONGODB_URI);

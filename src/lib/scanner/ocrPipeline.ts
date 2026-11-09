@@ -734,14 +734,16 @@ async function mapAPInexPatientsToEntries(
     
     // For column-based tabular registers, each entry is a horizontal row
     let box: { x: number; y: number; width: number; height: number };
-    if (isColumnBased) {
+    if (openCVBoxes && openCVBoxes[i]) {
+      box = openCVBoxes[i];
+    } else if (isColumnBased) {
       const totalRows = Math.max(patients.length, 1);
-      const rowHeight = Math.min(9.0, Math.max(4.0, 80 / totalRows));
-      const rowY = 13 + (i * (82 / totalRows));
+      const rowHeight = Math.min(9.0, Math.max(4.0, 72 / totalRows));
+      const rowY = 13.9 + (i * (72 / totalRows));
       box = {
-        x: 2.0,
+        x: 0.7,
         y: Math.round(rowY * 10) / 10,
-        width: 96.0,
+        width: 99.0,
         height: Math.round(rowHeight * 10) / 10,
       };
     } else {
@@ -766,7 +768,7 @@ async function mapAPInexPatientsToEntries(
 
     const entry: IScanEntry = {
       entryIndex: i + 1,
-      boxIndex: i,
+      boxIndex: i + 1,
       colIndex,
       rowIndex,
       boxCoordinates: {
@@ -783,6 +785,11 @@ async function mapAPInexPatientsToEntries(
           value: p.sNo || String(i + 1),
           confidence: 95,
           flag: "high",
+        },
+        daily: {
+          value: p.daily ?? undefined,
+          confidence: p.daily ? 90 : 0,
+          flag: p.daily ? "high" : "missing",
         },
         fullName: {
           value: p.name,
@@ -804,6 +811,11 @@ async function mapAPInexPatientsToEntries(
           confidence: phoneConf,
           flag: phoneConf >= 85 ? "high" : phoneConf > 0 ? "uncertain" : "missing",
         },
+        address: {
+          value: p.address ?? undefined,
+          confidence: p.address ? 85 : 0,
+          flag: p.address ? "high" : "missing",
+        },
         visitDate: {
           value: p.visitDate || undefined,
           confidence: p.visitDate ? 90 : 0,
@@ -814,8 +826,13 @@ async function mapAPInexPatientsToEntries(
           confidence: p.patientCode ? 80 : 0,
           flag: p.patientCode ? "high" : "missing",
         },
+        disease: {
+          value: p.disease || p.chiefComplaint || undefined,
+          confidence: treatConf,
+          flag: (p.disease || p.chiefComplaint) ? "high" : "missing",
+        },
         chiefComplaint: {
-          value: p.chiefComplaint ?? undefined,
+          value: p.chiefComplaint || p.disease || undefined,
           confidence: treatConf,
           flag: treatConf >= 80 ? "high" : treatConf > 0 ? "medium" : "missing",
         },
@@ -825,7 +842,7 @@ async function mapAPInexPatientsToEntries(
           flag: treatConf >= 80 ? "high" : treatConf > 0 ? "medium" : "missing",
         },
         dentalNotes: {
-          value: p.dentalNotes ?? undefined,
+          value: p.dentalNotes ?? (p.disease ? `Disease: ${p.disease} | Treatment: ${p.treatment || "General"}` : undefined),
           confidence: 80,
           flag: p.dentalNotes ? "medium" : "missing",
         },
@@ -837,6 +854,26 @@ async function mapAPInexPatientsToEntries(
           value: p.prescribedMedication ?? undefined,
           confidence: p.prescribedMedication ? 80 : 0,
           flag: p.prescribedMedication ? "medium" : "missing",
+        },
+        cashRs: {
+          value: p.cashRs ?? undefined,
+          confidence: p.cashRs != null ? 90 : 0,
+          flag: p.cashRs != null ? "high" : "missing",
+        },
+        cashPaise: {
+          value: p.cashPaise ?? undefined,
+          confidence: p.cashPaise != null ? 85 : 0,
+          flag: p.cashPaise != null ? "high" : "missing",
+        },
+        creditRs: {
+          value: p.creditRs ?? undefined,
+          confidence: p.creditRs != null ? 90 : 0,
+          flag: p.creditRs != null ? "high" : "missing",
+        },
+        creditPaise: {
+          value: p.creditPaise ?? undefined,
+          confidence: p.creditPaise != null ? 85 : 0,
+          flag: p.creditPaise != null ? "high" : "missing",
         },
         fee: {
           value: feeValue,
@@ -867,6 +904,11 @@ async function mapAPInexPatientsToEntries(
           value: p.remarks ?? undefined,
           confidence: p.remarks ? 75 : 0,
           flag: p.remarks ? "medium" : "missing",
+        },
+        extraFields: {
+          daily: p.daily,
+          cashPaise: p.cashPaise,
+          creditPaise: p.creditPaise,
         },
       },
     };
@@ -984,28 +1026,46 @@ export async function executeDocumentExtraction(
     .map((b) => b.trim())
     .filter((b) => b.length > 2);
 
-  const entries: IScanEntry[] = [];
+  let entries: IScanEntry[] = [];
 
-  for (let i = 0; i < boxesToUse.length; i++) {
-    const box = boxesToUse[i];
-    const boxRawText = rawBlocks[i] || "";
+  if (openCVResult.layoutType === "COLUMN_BASED") {
+    entries = await structureRegisterText(ocrText, options.clinicId);
+    // Align row bounding boxes with detected OpenCV rows
+    for (let i = 0; i < entries.length; i++) {
+      if (boxesToUse[i]) {
+        entries[i].boxIndex = i;
+        entries[i].rowIndex = i;
+        entries[i].colIndex = 0;
+        entries[i].boxCoordinates = {
+          x: boxesToUse[i].x,
+          y: boxesToUse[i].y,
+          width: boxesToUse[i].width,
+          height: boxesToUse[i].height,
+        };
+      }
+    }
+  } else {
+    for (let i = 0; i < boxesToUse.length; i++) {
+      const box = boxesToUse[i];
+      const boxRawText = rawBlocks[i] || "";
 
-    const gridItem: BoxGridItem = {
-      boxIndex: box.index,
-      col: box.colIndex ?? 0,
-      row: box.rowIndex ?? 0,
-      colIndex: box.colIndex ?? 0,
-      rowIndex: box.rowIndex ?? 0,
-      coordinates: {
-        x: box.x,
-        y: box.y,
-        width: box.width,
-        height: box.height,
-      },
-    };
+      const gridItem: BoxGridItem = {
+        boxIndex: box.index ? box.index : (i + 1),
+        col: box.colIndex ?? 0,
+        row: box.rowIndex ?? 0,
+        colIndex: box.colIndex ?? 0,
+        rowIndex: box.rowIndex ?? 0,
+        coordinates: {
+          x: box.x,
+          y: box.y,
+          width: box.width,
+          height: box.height,
+        },
+      };
 
-    const entry = await structureBoxText(boxRawText, options.clinicId, gridItem);
-    entries.push(entry);
+      const entry = await structureBoxText(boxRawText, options.clinicId, gridItem);
+      entries.push(entry);
+    }
   }
 
   const layoutMetadata = {

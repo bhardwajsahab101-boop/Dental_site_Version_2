@@ -64,3 +64,4 @@ clearAll().catch((err) => {
   console.error('Error clearing patients:', err);
   process.exit(1);
 });
+

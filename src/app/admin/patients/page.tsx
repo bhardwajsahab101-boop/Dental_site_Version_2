@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
+import PhysicalRegisterView from "./PhysicalRegisterView";
 import {
   Plus,
   X,
@@ -17,10 +18,21 @@ import {
   Users,
   Check,
   ChevronRight,
+  ChevronLeft,
   Trash2,
   Edit,
   Loader2,
-  Activity
+  Activity,
+  BookOpen,
+  Printer,
+  Download,
+  FileSpreadsheet,
+  CalendarDays,
+  CheckCircle2,
+  Clock,
+  Sparkles,
+  RotateCcw,
+  ArrowRight,
 } from "lucide-react";
 
 type Patient = {
@@ -55,6 +67,36 @@ type Treatmentform = {
   Notes: string;
   Status: string;
 };
+
+type RegisterRow = {
+  date: string;
+  sNo: string | number;
+  daily: string | number;
+  patientId: string;
+  patientCode: string;
+  fullName: string;
+  age?: number;
+  gender?: string;
+  phone?: string;
+  address?: string;
+  disease?: string;
+  treatment?: string;
+  cashRs?: number | null;
+  cashPaise?: string | number;
+  creditRs?: number | null;
+  creditPaise?: string | number;
+  totalCost?: number | null;
+  paymentStatus?: string;
+  remarks?: string;
+  appointmentId?: string;
+  appointmentTime?: string;
+};
+
+type DateOption = {
+  date: string;
+  count: number;
+};
+
 type Notice = {
   type: "success" | "error";
   message: string;
@@ -65,6 +107,23 @@ export default function PatientsPage() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Physical Register Mode state
+  const [viewMode, setViewMode] = useState<"standard" | "register">("standard");
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  });
+  const [registerRows, setRegisterRows] = useState<RegisterRow[]>([]);
+  const [registerLoading, setRegisterLoading] = useState(false);
+  const [registerSummary, setRegisterSummary] = useState({
+    totalPatients: 0,
+    totalCash: 0,
+    totalCredit: 0,
+    totalRevenue: 0,
+  });
+  const [availableDates, setAvailableDates] = useState<DateOption[]>([]);
+  const [unassignedCount, setUnassignedCount] = useState<number>(0);
+  const [registerSearchQuery, setRegisterSearchQuery] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [showTreatmentForm, setShowTreatmentForm] = useState(false);
   const [treatmentForm, setTreatmentForm] = useState<Treatmentform>({
@@ -142,12 +201,193 @@ export default function PatientsPage() {
       }
 
       setPatients((data.data || []) as Patient[]);
+      if (data.availableDates) setAvailableDates(data.availableDates);
+      if (data.unassignedCount !== undefined) setUnassignedCount(data.unassignedCount);
     } catch (e) {
       console.error(e);
       setError(e instanceof Error ? e.message : "Failed to load patients");
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchRegisterData = async (date: string) => {
+    setRegisterLoading(true);
+    try {
+      const res = await fetch(`/api/patients?mode=register&date=${date}`, { cache: "no-store" });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.message || `Request failed (${res.status})`);
+      }
+
+      setRegisterRows(data.registerRows || []);
+      setRegisterSummary(
+        data.summary || {
+          totalPatients: 0,
+          totalCash: 0,
+          totalCredit: 0,
+          totalRevenue: 0,
+        }
+      );
+      if (data.availableDates) setAvailableDates(data.availableDates);
+      if (data.unassignedCount !== undefined) setUnassignedCount(data.unassignedCount);
+    } catch (e: any) {
+      console.error("Failed to load register records:", e);
+      toast.error(e.message || "Failed to load physical register for selected date");
+    } finally {
+      setRegisterLoading(false);
+    }
+  };
+
+  // Sync with URL query parameters for session persistence
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const modeParam = params.get("mode");
+      const dateParam = params.get("date");
+      if (modeParam === "register") {
+        setViewMode("register");
+        if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+          setSelectedDate(dateParam);
+        }
+      }
+    }
+  }, []);
+
+  const syncUrlParams = (mode: "standard" | "register", date: string) => {
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (mode === "register") {
+        url.searchParams.set("mode", "register");
+        url.searchParams.set("date", date);
+      } else {
+        url.searchParams.delete("mode");
+        url.searchParams.delete("date");
+      }
+      window.history.replaceState({}, "", url.toString());
+    }
+  };
+
+  useEffect(() => {
+    if (viewMode === "register") {
+      fetchRegisterData(selectedDate);
+      syncUrlParams("register", selectedDate);
+    } else {
+      syncUrlParams("standard", selectedDate);
+    }
+  }, [viewMode, selectedDate]);
+
+  const handlePrevDay = () => {
+    setSelectedDate((curr) => {
+      const d = new Date(curr + "T00:00:00");
+      d.setDate(d.getDate() - 1);
+      return d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+    });
+  };
+
+  const handleNextDay = () => {
+    setSelectedDate((curr) => {
+      const d = new Date(curr + "T00:00:00");
+      d.setDate(d.getDate() + 1);
+      return d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+    });
+  };
+
+  const handleToday = () => {
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+    setSelectedDate(today);
+  };
+
+  const formatDisplayDate = (dateStr: string) => {
+    if (!dateStr) return "";
+    try {
+      const d = new Date(dateStr + "T00:00:00");
+      return d.toLocaleDateString("en-IN", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const handlePrintRegister = () => {
+    window.print();
+  };
+
+  const handleExportExcel = () => {
+    if (registerRows.length === 0) {
+      toast.error("No patient records to export for this date.");
+      return;
+    }
+
+    const dateFormatted = formatDisplayDate(selectedDate);
+    let csv = "\uFEFF"; // UTF-8 BOM
+    csv += `"ANIL SHARMA DENTAL HOSPITAL - DAILY PATIENT REGISTER"\n`;
+    csv += `"Visit Date: ${dateFormatted} (${selectedDate})"\n\n`;
+
+    const headers = [
+      "Date",
+      "S.No.",
+      "Daily Token",
+      "Patient Code",
+      "Patient Full Name",
+      "Age",
+      "Gender",
+      "Phone Number",
+      "Address",
+      "Disease / Diagnosis",
+      "Treatment / Procedure",
+      "Cash (Rs.)",
+      "Cash (Paise)",
+      "Credit (Rs.)",
+      "Credit (Paise)",
+      "Total Amount (Rs.)",
+      "Payment Status",
+      "Remarks",
+    ];
+
+    csv += headers.map((h) => `"${h}"`).join(",") + "\n";
+
+    registerRows.forEach((r) => {
+      const row = [
+        r.date,
+        r.sNo ?? "",
+        r.daily ?? "",
+        r.patientCode ?? "",
+        r.fullName ?? "",
+        r.age ?? "",
+        r.gender ?? "",
+        r.phone ?? "",
+        r.address ?? "",
+        r.disease ?? "",
+        r.treatment ?? "",
+        r.cashRs !== null && r.cashRs !== undefined ? r.cashRs : "",
+        r.cashPaise ?? "",
+        r.creditRs !== null && r.creditRs !== undefined ? r.creditRs : "",
+        r.creditPaise ?? "",
+        r.totalCost !== null && r.totalCost !== undefined ? r.totalCost : "",
+        r.paymentStatus ?? "",
+        r.remarks ?? "",
+      ];
+      csv += row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",") + "\n";
+    });
+
+    csv += `\n"Totals",,,,,,,,,,,"${registerSummary.totalCash}","00","${registerSummary.totalCredit}","00","${registerSummary.totalRevenue}","Patients: ${registerSummary.totalPatients}"\n`;
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `Anil_Sharma_Dental_Register_${selectedDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${registerRows.length} register entries to Excel / CSV`);
   };
 
   useEffect(() => {
@@ -447,6 +687,24 @@ export default function PatientsPage() {
     });
   }, [patients, searchQuery]);
 
+  const filteredRegisterRows = useMemo(() => {
+    const q = registerSearchQuery.trim().toLowerCase();
+    if (!q) return registerRows;
+    return registerRows.filter((r) => {
+      return (
+        String(r.sNo || "").toLowerCase().includes(q) ||
+        String(r.daily || "").toLowerCase().includes(q) ||
+        (r.fullName || "").toLowerCase().includes(q) ||
+        (r.patientCode || "").toLowerCase().includes(q) ||
+        (r.phone || "").toLowerCase().includes(q) ||
+        (r.address || "").toLowerCase().includes(q) ||
+        (r.disease || "").toLowerCase().includes(q) ||
+        (r.treatment || "").toLowerCase().includes(q) ||
+        (r.remarks || "").toLowerCase().includes(q)
+      );
+    });
+  }, [registerRows, registerSearchQuery]);
+
   const getGenderBadgeStyles = (gender?: string) => {
     switch (gender) {
       case "Male":
@@ -463,21 +721,63 @@ export default function PatientsPage() {
       {/* Title Header & Main Toggle Button */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
-            <Users className="w-6 h-6 text-indigo-500" />
+          <h1 className="text-2xl font-extrabold text-[#14213D] tracking-tight flex items-center gap-2.5">
+            <Users className="w-6 h-6 text-[#14B8A6]" />
             Patients Directory
           </h1>
-          <p className="text-slate-500 text-xs mt-1">
-            Search, filter, and register patients for the dental clinic
+          <p className="text-[#64748B] text-xs mt-1 font-medium">
+            Electronic health records, clinical triage, and treatment histories
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {patients.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2.5 no-print">
+          {/* Physical Register View Toggle: OFF / ON */}
+          <div className="flex items-center p-1 bg-white border border-[#E2E8F0] rounded-xl shadow-2xs">
+            <button
+              type="button"
+              onClick={() => setViewMode("standard")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                viewMode === "standard"
+                  ? "bg-[#14213D] text-white shadow-2xs"
+                  : "text-[#64748B] hover:text-[#182230]"
+              }`}
+              title="Standard Patients Directory (Cards / Table)"
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Standard Directory</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode("register");
+                setShowForm(false);
+              }}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                viewMode === "register"
+                  ? "bg-[#0D9488] text-white shadow-2xs"
+                  : "text-[#64748B] hover:text-[#182230]"
+              }`}
+              title="Traditional Handwritten Register Mode"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>Physical Register View</span>
+              <span
+                className={`text-[9.5px] px-1.5 py-0.5 rounded font-black tracking-wider uppercase ${
+                  viewMode === "register"
+                    ? "bg-white/20 text-white"
+                    : "bg-emerald-100 text-emerald-800"
+                }`}
+              >
+                {viewMode === "register" ? "ON" : "OFF"}
+              </span>
+            </button>
+          </div>
+
+          {viewMode === "standard" && patients.length > 0 && (
             <button
               onClick={handleClearAllPatients}
               type="button"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 shadow-sm transition-all duration-200 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 shadow-2xs transition-all duration-150 cursor-pointer"
               title="Delete all patients, appointments, treatments and reset numbering"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -491,10 +791,11 @@ export default function PatientsPage() {
               setNotice(null);
             }}
             type="button"
-            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm transition-all duration-200 cursor-pointer ${showForm
-                ? "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
-                : "bg-indigo-600 hover:bg-indigo-700 text-white"
-              }`}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold shadow-2xs transition-all duration-150 cursor-pointer ${
+              showForm
+                ? "bg-[#F4F7FA] hover:bg-slate-200 text-[#182230] border border-[#E2E8F0]"
+                : "bg-[#14B8A6] hover:bg-[#0D9488] text-white"
+            }`}
           >
             {showForm ? (
               <>
@@ -821,7 +1122,7 @@ export default function PatientsPage() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-75 disabled:cursor-not-allowed text-white rounded-xl text-xs font-semibold shadow-sm hover:shadow transition-all duration-150 flex items-center gap-1.5"
+                className="px-5 py-2 bg-[#14B8A6] hover:bg-[#0D9488] disabled:opacity-75 disabled:cursor-not-allowed text-white rounded-xl text-xs font-bold shadow-2xs hover:shadow-xs transition-all duration-150 flex items-center gap-1.5 cursor-pointer"
               >
                 {submitting ? (
                   <>
@@ -840,35 +1141,53 @@ export default function PatientsPage() {
         </div>
       )}
 
-      {/* Mini Stats KPI Panel */}
+      {viewMode === "register" ? (
+        <PhysicalRegisterView
+          selectedDate={selectedDate}
+          onSelectDate={(d) => setSelectedDate(d)}
+          registerRows={registerRows}
+          registerSummary={registerSummary}
+          availableDates={availableDates}
+          unassignedCount={unassignedCount}
+          loading={registerLoading}
+          onPrevDay={handlePrevDay}
+          onNextDay={handleNextDay}
+          onToday={handleToday}
+          onPrint={handlePrintRegister}
+          onExportExcel={handleExportExcel}
+          formatDisplayDate={formatDisplayDate}
+        />
+      ) : (
+        <>
+          {/* Mini Stats KPI Panel */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-indigo-50 flex items-center justify-center">
-            <Users className="w-4.5 h-4.5 text-indigo-500" />
+        <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-2xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-[#14213D]/5 border border-[#14213D]/10 flex items-center justify-center">
+            <Users className="w-5 h-5 text-[#14213D]" />
           </div>
           <div>
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Patients</span>
-            <span className="text-base font-bold text-slate-800 block mt-0.5">{stats.total}</span>
+            <span className="text-[10px] text-[#64748B] font-bold uppercase tracking-wider">Total Patients</span>
+            <span className="text-lg font-extrabold text-[#14213D] block mt-0.5">{stats.total}</span>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
-            <User className="w-4.5 h-4.5 text-blue-500" />
+        <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-2xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-sky-50 border border-sky-200 flex items-center justify-center">
+            <User className="w-5 h-5 text-sky-700" />
           </div>
           <div>
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Male Patients</span>
-            <span className="text-base font-bold text-slate-800 block mt-0.5">{stats.male}</span>
+            <span className="text-[10px] text-[#64748B] font-bold uppercase tracking-wider">Male Patients</span>
+            <span className="text-lg font-extrabold text-[#14213D] block mt-0.5">{stats.male}</span>
           </div>
         </div>
 
-        <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-pink-50 flex items-center justify-center">
-            <User className="w-4.5 h-4.5 text-pink-550" />
+        <div className="bg-white border border-[#E2E8F0] rounded-xl p-4 shadow-2xs flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-rose-50 border border-rose-200 flex items-center justify-center">
+            <User className="w-5 h-5 text-rose-600" />
           </div>
           <div>
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Female Patients</span>
-            <span className="text-base font-bold text-slate-800 block mt-0.5">{stats.female}</span>
+            <span className="text-[10px] text-[#64748B] font-bold uppercase tracking-wider">Female Patients</span>
+            <span className="text-lg font-extrabold text-[#14213D] block mt-0.5">{stats.female}</span>
           </div>
         </div>
       </div>
@@ -888,19 +1207,19 @@ export default function PatientsPage() {
       {/* Search Input Bar Section */}
       <div className="relative w-full">
         <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-          <Search className="h-4 w-4 text-slate-400" />
+          <Search className="h-4 w-4 text-[#64748B]" />
         </div>
         <input
           type="text"
-          placeholder="Search patients by name, code, or phone number..."
+          placeholder="Search patients by name, patient code, or contact number..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="block w-full pl-10 pr-4 py-2.5 text-xs bg-white border border-slate-200/80 focus:border-indigo-500 rounded-xl focus:ring-1 focus:ring-indigo-100 outline-none transition-all placeholder:text-slate-400 text-slate-800 shadow-sm"
+          className="block w-full pl-10 pr-4 py-2.5 text-xs bg-white border border-[#E2E8F0] focus:border-[#14B8A6] rounded-xl focus:ring-2 focus:ring-[#14B8A6]/20 outline-none transition-all placeholder:text-[#64748B] text-[#182230] shadow-2xs font-medium"
         />
         {searchQuery && (
           <button
             onClick={() => setSearchQuery("")}
-            className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 transition-colors"
+            className="absolute inset-y-0 right-0 pr-3 flex items-center text-[#64748B] hover:text-[#182230] transition-colors cursor-pointer"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -909,60 +1228,73 @@ export default function PatientsPage() {
 
       {loading && (
         <div className="flex items-center justify-center py-10">
-          <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
+          <Loader2 className="w-7 h-7 animate-spin text-[#14B8A6]" />
         </div>
       )}
 
       {error && (
-        <div className="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-100 rounded-xl p-4 text-center">
+        <div className="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-4 text-center">
           {error}
         </div>
       )}
 
       {/* Patients Table */}
       {!loading && !error && (
-        <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+        <div className="bg-white border border-[#E2E8F0] rounded-xl shadow-2xs overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-100">
-                  <th className="py-3 px-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider">Patient Code</th>
-                  <th className="py-3 px-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider">Name</th>
-                  <th className="py-3 px-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider">Phone</th>
-                  <th className="py-3 px-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider">Appointments</th>
-                  <th className="py-3 px-4 text-left text-[11px] font-bold text-slate-400 uppercase tracking-wider">Last Visit</th>
-                  <th className="py-3 px-4 text-right text-[11px] font-bold text-slate-400 uppercase tracking-wider">Actions</th>
+                <tr className="bg-[#F4F7FA] border-b border-[#E2E8F0]">
+                  <th className="py-3 px-4 text-left text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Patient Code</th>
+                  <th className="py-3 px-4 text-left text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Full Name</th>
+                  <th className="py-3 px-4 text-left text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Contact Phone</th>
+                  <th className="py-3 px-4 text-left text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Visits</th>
+                  <th className="py-3 px-4 text-left text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Last Visit</th>
+                  <th className="py-3 px-4 text-right text-[10px] font-bold text-[#64748B] uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
+              <tbody className="divide-y divide-[#E2E8F0]/60">
                 {filteredPatients.map((patient) => (
-                  <tr key={patient._id} className="hover:bg-slate-50/40 transition-colors group">
-                    <td className="py-3.5 px-4 text-xs font-mono font-semibold text-slate-600">
-                      {patient.patientCode ?? patient._id}
+                  <tr key={patient._id} className="hover:bg-[#F4F7FA]/70 transition-colors group">
+                    <td className="py-3 px-4 text-xs">
+                      <span className="font-mono font-bold bg-[#14213D] text-white px-2 py-0.5 rounded text-[10.5px]">
+                        {patient.patientCode ?? patient._id}
+                      </span>
                     </td>
-                    <td className="py-3.5 px-4 text-xs font-bold text-slate-800">
-                      {patient.fullName ?? "—"}
+                    <td className="py-3 px-4 text-xs font-bold text-[#182230]">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const patientId = patient?._id ? String(patient._id) : "";
+                          if (patientId) router.push(`/admin/patients/${patientId}`);
+                        }}
+                        className="hover:text-[#14B8A6] text-left transition-colors cursor-pointer"
+                      >
+                        {patient.fullName ?? "—"}
+                      </button>
                     </td>
-                    <td className="py-3.5 px-4 text-xs text-slate-600">
+                    <td className="py-3 px-4 text-xs text-[#64748B] font-medium">
                       {patient.phone ?? "—"}
                     </td>
-                    <td className="py-3.5 px-4 text-xs text-slate-700 font-semibold">
-                      {patient.appointmentCount ?? 0}
+                    <td className="py-3 px-4 text-xs text-[#182230] font-semibold">
+                      <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[11px]">
+                        {patient.appointmentCount ?? 0}
+                      </span>
                     </td>
-                    <td className="py-3.5 px-4 text-xs text-slate-600 font-medium">
-                      {patient.lastVisit ? new Date(patient.lastVisit).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }) : "No visits"}
+                    <td className="py-3 px-4 text-xs text-[#64748B] font-medium">
+                      {patient.lastVisit ? new Date(patient.lastVisit).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }) : "No visits recorded"}
                     </td>
-                    <td className="py-3.5 px-4 text-xs text-right">
-                      <div className="flex items-center justify-end gap-3">
+                    <td className="py-3 px-4 text-xs text-right">
+                      <div className="flex items-center justify-end gap-2">
                         <button
                           type="button"
                           onClick={() => {
                             const patientId = patient?._id ? String(patient._id) : "";
                             if (patientId) router.push(`/admin/patients/${patientId}`);
                           }}
-                          className="inline-flex items-center text-xs font-bold px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition-all"
+                          className="inline-flex items-center text-xs font-bold px-3 py-1.5 bg-[#14213D] hover:bg-[#0D1629] text-white rounded-lg transition-all cursor-pointer shadow-2xs"
                         >
-                          View
+                          View Profile
                         </button>
                         <button
                           type="button"
@@ -979,14 +1311,14 @@ export default function PatientsPage() {
                             });
                             setShowTreatmentForm(true);
                           }}
-                          className="inline-flex items-center text-xs font-bold px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg transition-all"
+                          className="inline-flex items-center text-xs font-bold px-3 py-1.5 bg-[#CCFBF1] hover:bg-[#14B8A6] text-[#0D9488] hover:text-white rounded-lg transition-all cursor-pointer shadow-2xs"
                         >
-                          Add Treatment
+                          + Treatment
                         </button>
                         <button
                           type="button"
                           onClick={() => handleDeleteSinglePatient(String(patient._id), patient.fullName || "Patient")}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200 cursor-pointer"
+                          className="p-1.5 text-[#64748B] hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-transparent hover:border-rose-200 cursor-pointer"
                           title="Delete Patient and linked records"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -998,7 +1330,7 @@ export default function PatientsPage() {
 
                 {filteredPatients.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="py-10 px-4 text-center text-xs text-slate-400 font-medium">
+                    <td colSpan={6} className="py-12 px-4 text-center text-xs text-[#64748B] font-medium">
                       No patients found matching your search.
                     </td>
                   </tr>
@@ -1007,6 +1339,8 @@ export default function PatientsPage() {
             </table>
           </div>
         </div>
+      )}
+        </>
       )}
 
       {/* Quick Add Treatment Modal */}

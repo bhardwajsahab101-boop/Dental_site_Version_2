@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import toast from "react-hot-toast";
 import {
+  Calendar,
   Camera,
   Upload,
   RotateCw,
@@ -31,7 +32,9 @@ import {
   Layers,
   BookmarkPlus,
   X,
-  FileText
+  FileText,
+  GitMerge,
+  Scissors
 } from "lucide-react";
 
 interface ScanField<T = any> {
@@ -67,20 +70,27 @@ interface ScanEntry {
   unreadableFields?: string[];
   fields: {
     sNo?: ScanField<string | number>;
+    daily?: ScanField<string | number>;
     fullName: ScanField<string>;
     age: ScanField<number>;
     gender: ScanField<"Male" | "Female" | "Other">;
     phone: ScanField<string>;
+    address?: ScanField<string>;
     visitDate: ScanField<string>;
     patientCode: ScanField<string>;
+    disease?: ScanField<string>;
+    chiefComplaint?: ScanField<string>;
     treatment: ScanField<string>;
     dentalNotes: ScanField<string>;
     prescribedTreatment: ScanField<string>;
+    cashRs?: ScanField<number>;
+    cashPaise?: ScanField<string | number>;
+    creditRs?: ScanField<number>;
+    creditPaise?: ScanField<string | number>;
     fee?: ScanField<number>;
     amount: ScanField<number>;
     paymentStatus: ScanField<"paid" | "partial" | "unpaid">;
     followUpDate: ScanField<string>;
-    chiefComplaint?: ScanField<string>;
     prescribedMedication?: ScanField<string>;
     nextAppointmentDate?: ScanField<string>;
     remarks?: ScanField<string>;
@@ -137,6 +147,27 @@ interface TemplateOption {
   isDefault: boolean;
 }
 
+function getBoxIdx(entry: ScanEntry, fallbackIdx: number): number {
+  if (typeof entry.boxIndex === "number" && entry.boxIndex > 0) return entry.boxIndex;
+  if (typeof entry.entryIndex === "number" && entry.entryIndex > 0) return entry.entryIndex;
+  return fallbackIdx + 1;
+}
+
+function normalizeScanDoc(doc: ScanDoc | null): ScanDoc | null {
+  if (!doc) return null;
+  if (!Array.isArray(doc.entries)) return doc;
+  const normalizedEntries = doc.entries.map((entry, idx) => {
+    const bIdx = getBoxIdx(entry, idx);
+    const eIdx = (typeof entry.entryIndex === "number" && entry.entryIndex > 0) ? entry.entryIndex : (idx + 1);
+    return {
+      ...entry,
+      boxIndex: bIdx,
+      entryIndex: eIdx,
+    };
+  });
+  return { ...doc, entries: normalizedEntries };
+}
+
 export default function PatientScannerPage() {
   const [activeTab, setActiveTab] = useState<"scanner" | "batches" | "history">("scanner");
   const [scans, setScans] = useState<ScanDoc[]>([]);
@@ -144,7 +175,15 @@ export default function PatientScannerPage() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [testMode, setTestMode] = useState<boolean>(false);
   const [batchName, setBatchName] = useState<string>("");
-  const [activeScan, setActiveScan] = useState<ScanDoc | null>(null);
+  const [rawActiveScan, setRawActiveScan] = useState<ScanDoc | null>(null);
+  const activeScan = useMemo(() => normalizeScanDoc(rawActiveScan), [rawActiveScan]);
+  const setActiveScan = useCallback((val: ScanDoc | null | ((prev: ScanDoc | null) => ScanDoc | null)) => {
+    if (typeof val === "function") {
+      setRawActiveScan((prev) => normalizeScanDoc(val(prev)));
+    } else {
+      setRawActiveScan(normalizeScanDoc(val));
+    }
+  }, []);
   const [templates, setTemplates] = useState<TemplateOption[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
 
@@ -175,6 +214,9 @@ export default function PatientScannerPage() {
   const [imageZoom, setImageZoom] = useState<number>(1);
   const [savingEntryId, setSavingEntryId] = useState<number | null>(null);
   const [reviewViewMode, setReviewViewMode] = useState<"table" | "boxes">("table");
+  const [bulkDate, setBulkDate] = useState<string>(() => {
+    return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -279,7 +321,7 @@ export default function PatientScannerPage() {
 
   // Crop snippet for active box
   const activeEntry = activeScan?.entries.find(
-    (e) => (e.boxIndex || e.entryIndex) === selectedBoxIndex
+    (e, idx) => getBoxIdx(e, idx) === selectedBoxIndex
   );
 
   useEffect(() => {
@@ -471,20 +513,52 @@ export default function PatientScannerPage() {
     val: any
   ) => {
     if (!activeScan) return;
-    const updated = activeScan.entries.map((entry) => {
-      const idx = entry.boxIndex || entry.entryIndex;
+    const updated = activeScan.entries.map((entry, eIdx) => {
+      const idx = getBoxIdx(entry, eIdx);
       if (idx !== boxIndex) return entry;
+      const existingField = (entry.fields as any)[fieldName] || { confidence: 0, flag: "missing" };
+      const updatedFields: any = {
+        ...entry.fields,
+        [fieldName]: {
+          ...existingField,
+          value: val,
+          confidence: 100,
+          flag: "high" as const,
+        },
+      };
+
+      // Keep alias fields synchronized
+      if (fieldName === "disease") {
+        updatedFields.chiefComplaint = { value: val, confidence: 100, flag: "high" };
+      } else if (fieldName === "chiefComplaint") {
+        updatedFields.disease = { value: val, confidence: 100, flag: "high" };
+      } else if (fieldName === "remarks") {
+        updatedFields.dentalNotes = { value: val, confidence: 100, flag: "high" };
+      } else if (fieldName === "dentalNotes") {
+        updatedFields.remarks = { value: val, confidence: 100, flag: "high" };
+      }
+
+      // Synchronize financial subcolumns with total fee
+      if (fieldName === "cashRs" || fieldName === "creditRs") {
+        const cash = fieldName === "cashRs" ? Number(val || 0) : Number(entry.fields.cashRs?.value || 0);
+        const credit = fieldName === "creditRs" ? Number(val || 0) : Number(entry.fields.creditRs?.value || 0);
+        const total = cash + credit;
+        if (total > 0) {
+          updatedFields.amount = { value: total, confidence: 100, flag: "high" };
+          updatedFields.fee = { value: total, confidence: 100, flag: "high" };
+        }
+        if (credit > 0 && cash > 0) {
+          updatedFields.paymentStatus = { value: "partial", confidence: 100, flag: "high" };
+        } else if (credit > 0 && cash === 0) {
+          updatedFields.paymentStatus = { value: "unpaid", confidence: 100, flag: "high" };
+        } else if (cash > 0 && credit === 0) {
+          updatedFields.paymentStatus = { value: "paid", confidence: 100, flag: "high" };
+        }
+      }
+
       return {
         ...entry,
-        fields: {
-          ...entry.fields,
-          [fieldName]: {
-            ...entry.fields[fieldName],
-            value: val,
-            confidence: 100,
-            flag: "high" as const,
-          },
-        },
+        fields: updatedFields,
       };
     });
 
@@ -501,13 +575,10 @@ export default function PatientScannerPage() {
     existingPatientId?: string
   ) => {
     if (!activeScan) return;
-    const entry = activeScan.entries.find((e) => (e.boxIndex || e.entryIndex) === boxIndex);
+    const entry = activeScan.entries.find((e, eIdx) => getBoxIdx(e, eIdx) === boxIndex);
     if (!entry) return;
 
-    if (!entry.fields.fullName.value?.trim()) {
-      toast.error("Patient name is required before saving.");
-      return;
-    }
+    const patientName = entry.fields.fullName?.value?.trim() || `Patient #${boxIndex}`;
 
     try {
       setSavingEntryId(boxIndex);
@@ -519,15 +590,19 @@ export default function PatientScannerPage() {
           action,
           existingPatientId: existingPatientId || entry.duplicateMatch?.patientId,
           customFields: {
-            fullName: entry.fields.fullName.value,
-            phone: entry.fields.phone.value,
-            age: entry.fields.age.value,
-            gender: entry.fields.gender.value,
-            visitDate: entry.fields.visitDate.value,
-            treatment: entry.fields.treatment.value,
-            dentalNotes: entry.fields.dentalNotes.value,
-            amount: entry.fields.amount.value,
-            paymentStatus: entry.fields.paymentStatus.value,
+            fullName: patientName,
+            phone: entry.fields.phone?.value,
+            age: entry.fields.age?.value,
+            gender: entry.fields.gender?.value,
+            address: entry.fields.address?.value,
+            disease: entry.fields.disease?.value || entry.fields.chiefComplaint?.value,
+            visitDate: entry.fields.visitDate?.value,
+            treatment: entry.fields.treatment?.value,
+            cashRs: entry.fields.cashRs?.value,
+            creditRs: entry.fields.creditRs?.value,
+            amount: entry.fields.fee?.value ?? entry.fields.amount?.value,
+            paymentStatus: entry.fields.paymentStatus?.value,
+            dentalNotes: entry.fields.dentalNotes?.value || entry.fields.remarks?.value,
           },
         }),
       });
@@ -535,10 +610,10 @@ export default function PatientScannerPage() {
       const data = await res.json();
       if (!data.success) throw new Error(data.message);
 
-      toast.success(`Box #${boxIndex} saved as ${data.patientCode}!`);
+      toast.success(`Row #${boxIndex} saved as ${data.patientCode}!`);
 
-      const updatedEntries = activeScan.entries.map((e) =>
-        (e.boxIndex || e.entryIndex) === boxIndex
+      const updatedEntries = activeScan.entries.map((e, eIdx) =>
+        getBoxIdx(e, eIdx) === boxIndex
           ? {
               ...e,
               status: "saved" as const,
@@ -556,10 +631,10 @@ export default function PatientScannerPage() {
       });
 
       const nextPending = updatedEntries.find(
-        (e) => (e.boxIndex || e.entryIndex) > boxIndex && e.status === "pending"
+        (e, eIdx) => getBoxIdx(e, eIdx) > boxIndex && e.status === "pending"
       );
       if (nextPending) {
-        setSelectedBoxIndex(nextPending.boxIndex || nextPending.entryIndex);
+        setSelectedBoxIndex(getBoxIdx(nextPending, 0));
       }
 
       fetchData();
@@ -573,7 +648,7 @@ export default function PatientScannerPage() {
   // Reject single box entry
   const handleRejectEntry = async (boxIndex: number) => {
     if (!activeScan) return;
-    const entry = activeScan.entries.find((e) => (e.boxIndex || e.entryIndex) === boxIndex);
+    const entry = activeScan.entries.find((e, eIdx) => getBoxIdx(e, eIdx) === boxIndex);
     if (!entry) return;
 
     try {
@@ -590,8 +665,8 @@ export default function PatientScannerPage() {
 
       toast.success(`Box #${boxIndex} marked as rejected`);
 
-      const updatedEntries = activeScan.entries.map((e) =>
-        (e.boxIndex || e.entryIndex) === boxIndex ? { ...e, status: "rejected" as const } : e
+      const updatedEntries = activeScan.entries.map((e, eIdx) =>
+        getBoxIdx(e, eIdx) === boxIndex ? { ...e, status: "rejected" as const } : e
       );
 
       setActiveScan({
@@ -607,6 +682,27 @@ export default function PatientScannerPage() {
     }
   };
 
+  // Apply a single arrival / visit date to all entries in this scan
+  const handleApplyDateToAll = () => {
+    if (!activeScan || !bulkDate) return;
+    const updated = activeScan.entries.map((entry) => ({
+      ...entry,
+      fields: {
+        ...entry.fields,
+        visitDate: {
+          value: bulkDate,
+          confidence: 100,
+          flag: "high" as const,
+        },
+      },
+    }));
+    setActiveScan({
+      ...activeScan,
+      entries: updated,
+    });
+    toast.success(`Updated arrival date to ${bulkDate} for all ${updated.length} entries!`);
+  };
+
   // Batch save all approved
   const handleBatchSave = async () => {
     if (!activeScan) return;
@@ -619,7 +715,23 @@ export default function PatientScannerPage() {
           modifiedEntries: activeScan.entries.map((e) => ({
             entryIndex: e.entryIndex,
             boxIndex: e.boxIndex,
-            fields: e.fields,
+            fields: {
+              fullName: e.fields.fullName?.value || `Patient #${e.boxIndex || e.entryIndex}`,
+              phone: e.fields.phone?.value,
+              age: e.fields.age?.value,
+              gender: e.fields.gender?.value,
+              address: e.fields.address?.value,
+              disease: e.fields.disease?.value || e.fields.chiefComplaint?.value,
+              treatment: e.fields.treatment?.value,
+              cashRs: e.fields.cashRs?.value,
+              creditRs: e.fields.creditRs?.value,
+              fee: e.fields.fee?.value ?? e.fields.amount?.value,
+              amount: e.fields.fee?.value ?? e.fields.amount?.value,
+              paymentStatus: e.fields.paymentStatus?.value,
+              visitDate: e.fields.visitDate?.value,
+              remarks: e.fields.remarks?.value,
+              dentalNotes: e.fields.dentalNotes?.value,
+            },
           })),
         }),
       });
@@ -637,6 +749,146 @@ export default function PatientScannerPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Merge entry with the next row (for multiline patient entries)
+  const handleMergeWithNext = (boxIndex: number) => {
+    if (!activeScan) return;
+    const entries = [...activeScan.entries];
+    const currIdx = entries.findIndex((e, eIdx) => getBoxIdx(e, eIdx) === boxIndex);
+    if (currIdx === -1 || currIdx >= entries.length - 1) {
+      toast.error("No subsequent row to merge with.");
+      return;
+    }
+    const current = entries[currIdx];
+    const next = entries[currIdx + 1];
+
+    const mergedAddress = [current.fields.address?.value, next.fields.address?.value || (next.fields.fullName?.value && !/^patient\s+in/i.test(next.fields.fullName.value) ? next.fields.fullName.value : "")].filter(Boolean).join(" ");
+    const mergedDisease = [current.fields.disease?.value || current.fields.chiefComplaint?.value, next.fields.disease?.value || next.fields.chiefComplaint?.value].filter(Boolean).join("; ");
+    const mergedTreatment = [current.fields.treatment?.value, next.fields.treatment?.value].filter(Boolean).join("; ");
+    const mergedRemarks = [current.fields.remarks?.value || current.fields.dentalNotes?.value, next.fields.remarks?.value || next.fields.dentalNotes?.value].filter(Boolean).join(" | ");
+
+    const cash = (Number(current.fields.cashRs?.value || 0)) + (Number(next.fields.cashRs?.value || 0));
+    const credit = (Number(current.fields.creditRs?.value || 0)) + (Number(next.fields.creditRs?.value || 0));
+    const totalAmt = (cash + credit) || (Number(current.fields.amount?.value || 0)) + (Number(next.fields.amount?.value || 0));
+
+    const currBox = current.boxCoordinates || { x: 0.7, y: 13.9 + currIdx * 7.5, width: 99, height: 7.5 };
+    const nextBox = next.boxCoordinates || { x: 0.7, y: currBox.y + currBox.height, width: 99, height: 7.5 };
+    const mergedY = Math.min(currBox.y, nextBox.y);
+    const mergedHeight = Math.max(currBox.y + currBox.height, nextBox.y + nextBox.height) - mergedY;
+
+    current.boxCoordinates = {
+      ...currBox,
+      y: Math.round(mergedY * 100) / 100,
+      height: Math.round(mergedHeight * 100) / 100,
+    };
+    if (mergedAddress) current.fields.address = { value: mergedAddress, confidence: 95, flag: "high" };
+    if (mergedDisease) current.fields.disease = { value: mergedDisease, confidence: 95, flag: "high" };
+    if (mergedTreatment) current.fields.treatment = { value: mergedTreatment, confidence: 95, flag: "high" };
+    if (mergedRemarks) current.fields.remarks = { value: mergedRemarks, confidence: 95, flag: "high" };
+    if (cash > 0) current.fields.cashRs = { value: cash, confidence: 95, flag: "high" };
+    if (credit > 0) current.fields.creditRs = { value: credit, confidence: 95, flag: "high" };
+    if (totalAmt > 0) {
+      current.fields.amount = { value: totalAmt, confidence: 95, flag: "high" };
+      current.fields.fee = { value: totalAmt, confidence: 95, flag: "high" };
+    }
+
+    entries.splice(currIdx + 1, 1);
+    const reindexed = entries.map((e, idx) => ({
+      ...e,
+      entryIndex: idx + 1,
+      boxIndex: idx + 1,
+      rowIndex: idx,
+    }));
+
+    setActiveScan({
+      ...activeScan,
+      entries: reindexed,
+      detectedCount: reindexed.length,
+    });
+    toast.success(`Merged multiline entry into Row #${boxIndex}`);
+  };
+
+  // Split row (for when two separate patients were grouped into one band)
+  const handleSplitRow = (boxIndex: number) => {
+    if (!activeScan) return;
+    const entries = [...activeScan.entries];
+    const currIdx = entries.findIndex((e, eIdx) => getBoxIdx(e, eIdx) === boxIndex);
+    if (currIdx === -1) return;
+    const current = entries[currIdx];
+
+    const currBox = current.boxCoordinates || { x: 0.7, y: 13.9 + currIdx * 7.5, width: 99, height: 7.5 };
+    const halfH = Math.round((currBox.height / 2) * 100) / 100;
+    current.boxCoordinates = {
+      ...currBox,
+      height: halfH,
+    };
+
+    const newEntry: ScanEntry = {
+      entryIndex: current.entryIndex + 1,
+      boxIndex: current.entryIndex + 1,
+      colIndex: 0,
+      rowIndex: (current.rowIndex ?? currIdx) + 1,
+      boxCoordinates: {
+        x: currBox.x,
+        y: Math.round((currBox.y + halfH) * 100) / 100,
+        width: currBox.width,
+        height: halfH,
+      },
+      status: "pending",
+      fields: {
+        sNo: { value: String(currIdx + 2), confidence: 80, flag: "medium" },
+        fullName: { value: "", confidence: 0, flag: "missing" },
+        age: { confidence: 0, flag: "missing" },
+        gender: { confidence: 0, flag: "missing" },
+        phone: { confidence: 0, flag: "missing" },
+        visitDate: { value: current.fields.visitDate?.value, confidence: 80, flag: "medium" },
+        patientCode: { confidence: 0, flag: "missing" },
+        treatment: { confidence: 0, flag: "missing" },
+        dentalNotes: { confidence: 0, flag: "missing" },
+        prescribedTreatment: { confidence: 0, flag: "missing" },
+        amount: { confidence: 0, flag: "missing" },
+        paymentStatus: { confidence: 0, flag: "missing" },
+        followUpDate: { confidence: 0, flag: "missing" },
+      },
+    };
+
+    entries.splice(currIdx + 1, 0, newEntry);
+    const reindexed = entries.map((e, idx) => ({
+      ...e,
+      entryIndex: idx + 1,
+      boxIndex: idx + 1,
+      rowIndex: idx,
+    }));
+
+    setActiveScan({
+      ...activeScan,
+      entries: reindexed,
+      detectedCount: reindexed.length,
+    });
+    toast.success(`Split Row #${boxIndex} into two separate entries.`);
+  };
+
+  // Delete row (for empty / blank register lines)
+  const handleDeleteRow = (boxIndex: number) => {
+    if (!activeScan) return;
+    if (activeScan.entries.length <= 1) {
+      toast.error("Cannot delete the only entry row.");
+      return;
+    }
+    const updated = activeScan.entries.filter((e, eIdx) => getBoxIdx(e, eIdx) !== boxIndex);
+    const reindexed = updated.map((e, idx) => ({
+      ...e,
+      entryIndex: idx + 1,
+      boxIndex: idx + 1,
+      rowIndex: idx,
+    }));
+    setActiveScan({
+      ...activeScan,
+      entries: reindexed,
+      detectedCount: reindexed.length,
+    });
+    toast.success(`Removed Row #${boxIndex}`);
   };
 
   // Delete batch
@@ -1196,6 +1448,26 @@ export default function PatientScannerPage() {
                       <span>Save Template</span>
                     </button>
 
+                    {/* Bulk Date Override Tool */}
+                    <div className="flex items-center space-x-1.5 bg-white border border-slate-200 rounded-xl px-2.5 py-1 shadow-2xs">
+                      <Calendar className="w-3.5 h-3.5 text-[#16A6A1]" />
+                      <input
+                        type="date"
+                        value={bulkDate}
+                        onChange={(e) => setBulkDate(e.target.value)}
+                        className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                        title="Arrival date to apply to all entries"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleApplyDateToAll}
+                        className="px-2 py-0.5 text-[11px] font-bold bg-[#102C46] hover:bg-[#16A6A1] text-white rounded-lg transition cursor-pointer"
+                        title="Set this arrival date on all rows in this scan"
+                      >
+                        Set All Dates
+                      </button>
+                    </div>
+
                     {/* Batch Approve CTA */}
                     <button
                       onClick={handleBatchSave}
@@ -1283,11 +1555,9 @@ export default function PatientScannerPage() {
                     <div className="relative overflow-auto max-h-[640px] bg-slate-900 rounded-xl p-2 select-none border border-slate-800 shadow-inner">
                       <div
                         style={{
-                          transform: `scale(${imageZoom})`,
-                          transformOrigin: "top left",
+                          width: `${imageZoom * 100}%`,
                           position: "relative",
                           display: "block",
-                          width: imageZoom === 1 ? "100%" : `${imageZoom * 100}%`,
                         }}
                       >
                         <img
@@ -1297,8 +1567,8 @@ export default function PatientScannerPage() {
                         />
 
                         {/* Row Bounding Box Overlays */}
-                        {activeScan.entries.map((entry) => {
-                          const bIdx = entry.boxIndex || entry.entryIndex;
+                        {activeScan.entries.map((entry, idx) => {
+                          const bIdx = getBoxIdx(entry, idx);
                           const isSelected = bIdx === selectedBoxIndex;
                           const isHovered = bIdx === hoveredBoxIndex;
                           const isSaved = entry.status === "saved";
@@ -1312,7 +1582,7 @@ export default function PatientScannerPage() {
 
                           return (
                             <div
-                              key={bIdx}
+                              key={`overlay-${(entry as any)._id || bIdx}-${idx}`}
                               onClick={() => setSelectedBoxIndex(bIdx)}
                               onMouseEnter={() => setHoveredBoxIndex(bIdx)}
                               onMouseLeave={() => setHoveredBoxIndex(null)}
@@ -1371,7 +1641,7 @@ export default function PatientScannerPage() {
 
                   {/* Right: Full-Density Medical Register Spreadsheet Table */}
                   <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-                    <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+                    <div className="p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50/70">
                       <div>
                         <h3 className="text-sm font-bold text-[#102C46] flex items-center space-x-2">
                           <Table className="w-4 h-4 text-[#16A6A1]" />
@@ -1381,50 +1651,77 @@ export default function PatientScannerPage() {
                           Inline editable cells. Click any value to adjust before saving to DentalOS.
                         </p>
                       </div>
-                      <button
-                        onClick={handleBatchSave}
-                        disabled={loading || pendingBoxes === 0}
-                        className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-sm flex items-center space-x-1.5 transition ${
-                          pendingBoxes === 0
-                            ? "bg-slate-200 text-slate-400 cursor-not-allowed"
-                            : "bg-emerald-600 hover:bg-emerald-700 text-white"
-                        }`}
-                      >
-                        <UserCheck className="w-3.5 h-3.5" />
-                        <span>Approve All ({pendingBoxes})</span>
-                      </button>
+
+                      <div className="flex items-center space-x-2">
+                        {/* Bulk Date Tool */}
+                        <div className="flex items-center space-x-1.5 bg-white border border-slate-200 rounded-xl px-2.5 py-1 shadow-2xs">
+                          <Calendar className="w-3.5 h-3.5 text-[#16A6A1]" />
+                          <input
+                            type="date"
+                            value={bulkDate}
+                            onChange={(e) => setBulkDate(e.target.value)}
+                            className="bg-transparent text-xs font-bold text-slate-700 outline-none cursor-pointer"
+                            title="Arrival date to apply to all rows"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleApplyDateToAll}
+                            className="px-2 py-0.5 text-[11px] font-bold bg-[#102C46] hover:bg-[#16A6A1] text-white rounded-lg transition cursor-pointer"
+                            title="Set this arrival date on all rows in this scan"
+                          >
+                            Set All
+                          </button>
+                        </div>
+
+                        <button
+                          onClick={handleBatchSave}
+                          disabled={loading || pendingBoxes === 0}
+                          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shadow-sm flex items-center space-x-1.5 transition ${
+                            pendingBoxes === 0
+                              ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+                              : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                          }`}
+                        >
+                          <UserCheck className="w-3.5 h-3.5" />
+                          <span>Approve All ({pendingBoxes})</span>
+                        </button>
+                      </div>
                     </div>
 
                     <div className="overflow-x-auto max-h-[640px] overflow-y-auto">
                       <table className="w-full text-left text-xs whitespace-nowrap">
                         <thead className="bg-slate-100/90 sticky top-0 z-10 border-b border-slate-200 text-slate-700 font-bold">
                           <tr>
-                            <th className="px-3 py-3 w-10 text-center">#</th>
-                            <th className="px-3 py-3 min-w-[150px]">Patient Name *</th>
+                            <th className="px-3 py-3 w-12 text-center">#</th>
+                            <th className="px-3 py-3 min-w-[125px]">Date</th>
+                            <th className="px-3 py-3 w-16 text-center">Daily</th>
+                            <th className="px-3 py-3 min-w-[160px]">Patient Name *</th>
                             <th className="px-3 py-3 w-28">Age / Sex</th>
                             <th className="px-3 py-3 min-w-[120px]">Phone</th>
-                            <th className="px-3 py-3 min-w-[125px]">Visit Date</th>
-                            <th className="px-3 py-3 min-w-[150px]">Treatment / Complaint</th>
-                            <th className="px-3 py-3 min-w-[125px]">Next Visit</th>
-                            <th className="px-3 py-3 w-20">Fee (₹)</th>
+                            <th className="px-3 py-3 min-w-[160px]">Address</th>
+                            <th className="px-3 py-3 min-w-[150px]">Disease / Complaint</th>
+                            <th className="px-3 py-3 min-w-[150px]">Treatment</th>
+                            <th className="px-3 py-3 w-32">Cash (₹ / P)</th>
+                            <th className="px-3 py-3 w-32">Credit (₹ / P)</th>
+                            <th className="px-3 py-3 w-20">Total (₹)</th>
                             <th className="px-3 py-3 w-24">Payment</th>
-                            <th className="px-3 py-3 min-w-[130px]">Remarks</th>
+                            <th className="px-3 py-3 min-w-[140px]">Remarks</th>
                             <th className="px-3 py-3 w-20 text-center">Match</th>
-                            <th className="px-3 py-3 w-28 text-center sticky right-0 bg-slate-100 z-10 shadow-l">
-                              Action
+                            <th className="px-3 py-3 min-w-[180px] text-center sticky right-0 bg-slate-100 z-10 shadow-l">
+                              Actions
                             </th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                          {activeScan.entries.map((entry) => {
-                            const bIdx = entry.boxIndex || entry.entryIndex;
+                          {activeScan.entries.map((entry, idx) => {
+                            const bIdx = getBoxIdx(entry, idx);
                             const isSelected = bIdx === selectedBoxIndex;
                             const isSaved = entry.status === "saved";
                             const isRejected = entry.status === "rejected";
 
                             return (
                               <tr
-                                key={bIdx}
+                                key={`tablerow-${(entry as any)._id || bIdx}-${idx}`}
                                 onClick={() => setSelectedBoxIndex(bIdx)}
                                 onMouseEnter={() => setHoveredBoxIndex(bIdx)}
                                 onMouseLeave={() => setHoveredBoxIndex(null)}
@@ -1439,13 +1736,44 @@ export default function PatientScannerPage() {
                                 }`}
                               >
                                 {/* S.No */}
-                                <td className="px-3 py-2 text-center font-mono font-bold text-slate-600">
-                                  {entry.fields.sNo?.value || bIdx}
+                                <td className="px-2 py-2 text-center">
+                                  <input
+                                    type="text"
+                                    disabled={isSaved}
+                                    value={entry.fields.sNo?.value ?? bIdx}
+                                    onChange={(e) => handleFieldChange(bIdx, "sNo", e.target.value)}
+                                    className="w-10 px-1 py-1 text-center font-mono font-bold text-xs border border-transparent hover:border-slate-200 focus:border-[#16A6A1] rounded bg-transparent focus:bg-white text-slate-700"
+                                  />
+                                </td>
+
+                                {/* Visit Date */}
+                                <td className="px-2 py-2">
+                                  <input
+                                    type="date"
+                                    disabled={isSaved}
+                                    value={entry.fields.visitDate?.value || ""}
+                                    onChange={(e) =>
+                                      handleFieldChange(bIdx, "visitDate", e.target.value)
+                                    }
+                                    className="w-28 px-1.5 py-1 text-xs border border-slate-200 rounded bg-white"
+                                  />
+                                </td>
+
+                                {/* Daily Token */}
+                                <td className="px-2 py-2 text-center">
+                                  <input
+                                    type="text"
+                                    disabled={isSaved}
+                                    value={entry.fields.daily?.value ?? ""}
+                                    onChange={(e) => handleFieldChange(bIdx, "daily", e.target.value)}
+                                    placeholder="--"
+                                    className="w-14 px-1 py-1 text-xs text-center font-mono border border-slate-200 rounded bg-white"
+                                  />
                                 </td>
 
                                 {/* Name */}
-                                <td className="px-3 py-2">
-                                  <div className="space-y-1">
+                                <td className="px-2 py-2">
+                                  <div className="space-y-0.5">
                                     <input
                                       type="text"
                                       value={entry.fields.fullName.value || ""}
@@ -1470,7 +1798,7 @@ export default function PatientScannerPage() {
                                 </td>
 
                                 {/* Age & Sex */}
-                                <td className="px-3 py-2">
+                                <td className="px-2 py-2">
                                   <div className="flex items-center space-x-1">
                                     <input
                                       type="number"
@@ -1494,9 +1822,9 @@ export default function PatientScannerPage() {
                                       onChange={(e) =>
                                         handleFieldChange(bIdx, "gender", e.target.value || undefined)
                                       }
-                                      className="w-14 px-1 py-1 text-xs border border-slate-200 rounded bg-white"
+                                      className="w-12 px-1 py-1 text-xs border border-slate-200 rounded bg-white"
                                     >
-                                      <option value="">--</option>
+                                      <option value="">-</option>
                                       <option value="Male">M</option>
                                       <option value="Female">F</option>
                                       <option value="Other">O</option>
@@ -1505,7 +1833,7 @@ export default function PatientScannerPage() {
                                 </td>
 
                                 {/* Phone */}
-                                <td className="px-3 py-2">
+                                <td className="px-2 py-2">
                                   <input
                                     type="tel"
                                     disabled={isSaved}
@@ -1514,25 +1842,40 @@ export default function PatientScannerPage() {
                                       handleFieldChange(bIdx, "phone", e.target.value)
                                     }
                                     placeholder="Mobile #"
-                                    className="w-28 px-2 py-1 text-xs font-mono border border-slate-200 rounded bg-white"
+                                    className="w-28 px-1.5 py-1 text-xs font-mono border border-slate-200 rounded bg-white"
                                   />
                                 </td>
 
-                                {/* Visit Date */}
-                                <td className="px-3 py-2">
+                                {/* Address */}
+                                <td className="px-2 py-2">
                                   <input
-                                    type="date"
+                                    type="text"
                                     disabled={isSaved}
-                                    value={entry.fields.visitDate.value || ""}
+                                    value={entry.fields.address?.value || ""}
                                     onChange={(e) =>
-                                      handleFieldChange(bIdx, "visitDate", e.target.value)
+                                      handleFieldChange(bIdx, "address", e.target.value)
                                     }
-                                    className="w-32 px-1.5 py-1 text-xs border border-slate-200 rounded bg-white"
+                                    placeholder="Village / Town"
+                                    className="w-36 px-2 py-1 text-xs border border-slate-200 rounded bg-white"
+                                  />
+                                </td>
+
+                                {/* Disease */}
+                                <td className="px-2 py-2">
+                                  <input
+                                    type="text"
+                                    disabled={isSaved}
+                                    value={entry.fields.disease?.value || entry.fields.chiefComplaint?.value || ""}
+                                    onChange={(e) =>
+                                      handleFieldChange(bIdx, "disease", e.target.value)
+                                    }
+                                    placeholder="Diagnosis / Complaint"
+                                    className="w-36 px-2 py-1 text-xs border border-slate-200 rounded bg-white"
                                   />
                                 </td>
 
                                 {/* Treatment */}
-                                <td className="px-3 py-2">
+                                <td className="px-2 py-2">
                                   <input
                                     type="text"
                                     disabled={isSaved}
@@ -1540,26 +1883,77 @@ export default function PatientScannerPage() {
                                     onChange={(e) =>
                                       handleFieldChange(bIdx, "treatment", e.target.value)
                                     }
-                                    placeholder="Treatment / Complaint"
+                                    placeholder="Treatment / Rx"
                                     className="w-36 px-2 py-1 text-xs border border-slate-200 rounded bg-white"
                                   />
                                 </td>
 
-                                {/* Next Visit Date */}
-                                <td className="px-3 py-2">
-                                  <input
-                                    type="date"
-                                    disabled={isSaved}
-                                    value={entry.fields.followUpDate.value || ""}
-                                    onChange={(e) =>
-                                      handleFieldChange(bIdx, "followUpDate", e.target.value)
-                                    }
-                                    className="w-32 px-1.5 py-1 text-xs border border-slate-200 rounded bg-white"
-                                  />
+                                {/* Cash Rs / Paise */}
+                                <td className="px-2 py-2">
+                                  <div className="flex items-center space-x-0.5">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      disabled={isSaved}
+                                      value={entry.fields.cashRs?.value ?? ""}
+                                      onChange={(e) =>
+                                        handleFieldChange(
+                                          bIdx,
+                                          "cashRs",
+                                          e.target.value ? Number(e.target.value) : undefined
+                                        )
+                                      }
+                                      placeholder="₹"
+                                      className="w-16 px-1.5 py-1 text-xs font-mono border border-slate-200 rounded bg-white font-medium"
+                                    />
+                                    <span className="text-[10px] text-slate-400">.</span>
+                                    <input
+                                      type="text"
+                                      disabled={isSaved}
+                                      value={entry.fields.cashPaise?.value ?? ""}
+                                      onChange={(e) =>
+                                        handleFieldChange(bIdx, "cashPaise", e.target.value)
+                                      }
+                                      placeholder="00"
+                                      className="w-8 px-1 py-1 text-[11px] font-mono border border-slate-200 rounded bg-white text-center text-slate-500"
+                                    />
+                                  </div>
                                 </td>
 
-                                {/* Fee / Amount */}
-                                <td className="px-3 py-2">
+                                {/* Credit Rs / Paise */}
+                                <td className="px-2 py-2">
+                                  <div className="flex items-center space-x-0.5">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      disabled={isSaved}
+                                      value={entry.fields.creditRs?.value ?? ""}
+                                      onChange={(e) =>
+                                        handleFieldChange(
+                                          bIdx,
+                                          "creditRs",
+                                          e.target.value ? Number(e.target.value) : undefined
+                                        )
+                                      }
+                                      placeholder="₹"
+                                      className="w-16 px-1.5 py-1 text-xs font-mono border border-slate-200 rounded bg-white font-medium text-amber-700"
+                                    />
+                                    <span className="text-[10px] text-slate-400">.</span>
+                                    <input
+                                      type="text"
+                                      disabled={isSaved}
+                                      value={entry.fields.creditPaise?.value ?? ""}
+                                      onChange={(e) =>
+                                        handleFieldChange(bIdx, "creditPaise", e.target.value)
+                                      }
+                                      placeholder="00"
+                                      className="w-8 px-1 py-1 text-[11px] font-mono border border-slate-200 rounded bg-white text-center text-slate-500"
+                                    />
+                                  </div>
+                                </td>
+
+                                {/* Total Fee / Amount */}
+                                <td className="px-2 py-2">
                                   <input
                                     type="number"
                                     min="0"
@@ -1570,20 +1964,20 @@ export default function PatientScannerPage() {
                                       handleFieldChange(bIdx, "amount", val);
                                       handleFieldChange(bIdx, "fee", val);
                                     }}
-                                    placeholder="₹"
-                                    className="w-20 px-2 py-1 text-xs font-mono border border-slate-200 rounded bg-white font-semibold"
+                                    placeholder="Total"
+                                    className="w-16 px-1.5 py-1 text-xs font-mono border border-slate-200 rounded bg-white font-bold text-slate-800"
                                   />
                                 </td>
 
                                 {/* Payment Status */}
-                                <td className="px-3 py-2">
+                                <td className="px-2 py-2">
                                   <select
                                     disabled={isSaved}
                                     value={entry.fields.paymentStatus.value || "paid"}
                                     onChange={(e: any) =>
                                       handleFieldChange(bIdx, "paymentStatus", e.target.value)
                                     }
-                                    className="w-24 px-1.5 py-1 text-xs border border-slate-200 rounded bg-white"
+                                    className="w-22 px-1.5 py-1 text-xs border border-slate-200 rounded bg-white"
                                   >
                                     <option value="paid">Paid</option>
                                     <option value="partial">Due / Part</option>
@@ -1592,16 +1986,16 @@ export default function PatientScannerPage() {
                                 </td>
 
                                 {/* Remarks */}
-                                <td className="px-3 py-2">
+                                <td className="px-2 py-2">
                                   <input
                                     type="text"
                                     disabled={isSaved}
-                                    value={entry.fields.dentalNotes.value || ""}
+                                    value={entry.fields.remarks?.value || entry.fields.dentalNotes?.value || ""}
                                     onChange={(e) =>
-                                      handleFieldChange(bIdx, "dentalNotes", e.target.value)
+                                      handleFieldChange(bIdx, "remarks", e.target.value)
                                     }
-                                    placeholder="Remarks"
-                                    className="w-32 px-2 py-1 text-xs border border-slate-200 rounded bg-white"
+                                    placeholder="Remarks / Follow-up"
+                                    className="w-32 px-1.5 py-1 text-xs border border-slate-200 rounded bg-white"
                                   />
                                 </td>
 
@@ -1622,7 +2016,7 @@ export default function PatientScannerPage() {
                                 </td>
 
                                 {/* Actions */}
-                                <td className="px-3 py-2 text-center sticky right-0 bg-white/95 shadow-l">
+                                <td className="px-2 py-2 text-center sticky right-0 bg-white/95 shadow-l z-10">
                                   {isSaved ? (
                                     <span className="inline-flex items-center px-2 py-1 rounded-md text-[11px] font-bold bg-emerald-100 text-emerald-800">
                                       <CheckCircle2 className="w-3 h-3 mr-1 text-emerald-600" />
@@ -1633,26 +2027,72 @@ export default function PatientScannerPage() {
                                       Rejected
                                     </span>
                                   ) : (
-                                    <div className="flex items-center justify-center space-x-1.5">
+                                    <div className="flex items-center justify-center space-x-1">
+                                      {/* Merge With Next Row */}
+                                      <button
+                                        type="button"
+                                        onClick={(ev) => {
+                                          ev.stopPropagation();
+                                          handleMergeWithNext(bIdx);
+                                        }}
+                                        className="p-1 text-slate-500 hover:text-[#16A6A1] hover:bg-teal-50 rounded transition"
+                                        title="Merge with Next Row (Combine Multi-line Patient)"
+                                      >
+                                        <GitMerge className="w-3.5 h-3.5" />
+                                      </button>
+
+                                      {/* Split Row */}
+                                      <button
+                                        type="button"
+                                        onClick={(ev) => {
+                                          ev.stopPropagation();
+                                          handleSplitRow(bIdx);
+                                        }}
+                                        className="p-1 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded transition"
+                                        title="Split Row into Two Entries"
+                                      >
+                                        <Scissors className="w-3.5 h-3.5" />
+                                      </button>
+
+                                      {/* Delete Row */}
+                                      <button
+                                        type="button"
+                                        onClick={(ev) => {
+                                          ev.stopPropagation();
+                                          handleDeleteRow(bIdx);
+                                        }}
+                                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"
+                                        title="Delete Blank / Extraneous Row"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+
+                                      {/* Save Patient */}
                                       <button
                                         type="button"
                                         disabled={savingEntryId === bIdx}
-                                        onClick={() =>
+                                        onClick={(ev) => {
+                                          ev.stopPropagation();
                                           handleSaveEntry(
                                             bIdx,
                                             entry.duplicateMatch ? "link_existing" : "create_new",
                                             entry.duplicateMatch?.patientId
-                                          )
-                                        }
-                                        className="px-2.5 py-1 bg-[#102C46] hover:bg-emerald-600 text-white rounded text-[11px] font-bold shadow-sm transition flex items-center space-x-1"
+                                          );
+                                        }}
+                                        className="px-2 py-1 bg-[#102C46] hover:bg-emerald-600 text-white rounded text-[11px] font-bold shadow-xs transition flex items-center space-x-1"
                                         title="Confirm & Save Patient to DentalOS"
                                       >
                                         <Check className="w-3 h-3" />
                                         <span>Save</span>
                                       </button>
+
+                                      {/* Reject Entry */}
                                       <button
                                         type="button"
-                                        onClick={() => handleRejectEntry(bIdx)}
+                                        onClick={(ev) => {
+                                          ev.stopPropagation();
+                                          handleRejectEntry(bIdx);
+                                        }}
                                         className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition"
                                         title="Reject Entry"
                                       >
@@ -1705,11 +2145,9 @@ export default function PatientScannerPage() {
                     <div className="relative overflow-auto max-h-[580px] bg-slate-900 rounded-xl p-2 select-none">
                       <div
                         style={{
-                          transform: `scale(${imageZoom})`,
-                          transformOrigin: "top left",
+                          width: `${imageZoom * 100}%`,
                           position: "relative",
                           display: "block",
-                          width: imageZoom === 1 ? "100%" : `${imageZoom * 100}%`,
                         }}
                       >
                         <img
@@ -1718,8 +2156,8 @@ export default function PatientScannerPage() {
                           className="w-full h-auto block rounded select-none"
                         />
 
-                        {activeScan.entries.map((entry) => {
-                          const bIdx = entry.boxIndex || entry.entryIndex;
+                        {activeScan.entries.map((entry, idx) => {
+                          const bIdx = getBoxIdx(entry, idx);
                           const isSelected = bIdx === selectedBoxIndex;
                           const isHovered = bIdx === hoveredBoxIndex;
                           const isSaved = entry.status === "saved";
@@ -1733,7 +2171,7 @@ export default function PatientScannerPage() {
 
                           return (
                             <div
-                              key={bIdx}
+                              key={`boxoverlay-${(entry as any)._id || bIdx}-${idx}`}
                               onClick={() => setSelectedBoxIndex(bIdx)}
                               onMouseEnter={() => setHoveredBoxIndex(bIdx)}
                               onMouseLeave={() => setHoveredBoxIndex(null)}
@@ -1805,15 +2243,15 @@ export default function PatientScannerPage() {
                         Patient Box Selector ({totalBoxes} Boxes):
                       </span>
                       <div className="flex items-center space-x-2 overflow-x-auto pb-1">
-                        {activeScan.entries.map((entry) => {
-                          const bIdx = entry.boxIndex || entry.entryIndex;
+                        {activeScan.entries.map((entry, idx) => {
+                          const bIdx = getBoxIdx(entry, idx);
                           const isSelected = bIdx === selectedBoxIndex;
                           const isSaved = entry.status === "saved";
                           const isRejected = entry.status === "rejected";
 
                           return (
                             <button
-                              key={bIdx}
+                              key={`boxbtn-${(entry as any)._id || bIdx}-${idx}`}
                               onClick={() => setSelectedBoxIndex(bIdx)}
                               className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 transition flex items-center space-x-1.5 ${
                                 isSelected
@@ -1940,7 +2378,7 @@ export default function PatientScannerPage() {
 
                         {/* Editable Form Inputs for Box */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <div className="sm:col-span-2 space-y-1.5">
+                          <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
                               <label className="text-xs font-bold text-slate-700">Patient Full Name *</label>
                               {renderConfidenceBadge(activeEntry.fields.fullName.confidence, activeEntry.fields.fullName.flag)}
@@ -1956,45 +2394,47 @@ export default function PatientScannerPage() {
                             />
                           </div>
 
-                          <div className="space-y-1.5">
-                            <div className="flex items-center justify-between">
-                              <label className="text-xs font-bold text-slate-700">Age</label>
-                              {renderConfidenceBadge(activeEntry.fields.age.confidence, activeEntry.fields.age.flag)}
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <label className="text-xs font-bold text-slate-700">Age</label>
+                                {renderConfidenceBadge(activeEntry.fields.age.confidence, activeEntry.fields.age.flag)}
+                              </div>
+                              <input
+                                type="number"
+                                min="0"
+                                max="110"
+                                value={activeEntry.fields.age.value ?? ""}
+                                onChange={(e) =>
+                                  handleFieldChange(
+                                    activeEntry.boxIndex || activeEntry.entryIndex,
+                                    "age",
+                                    e.target.value ? Number(e.target.value) : undefined
+                                  )
+                                }
+                                placeholder="Age"
+                                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl"
+                              />
                             </div>
-                            <input
-                              type="number"
-                              min="0"
-                              max="110"
-                              value={activeEntry.fields.age.value ?? ""}
-                              onChange={(e) =>
-                                handleFieldChange(
-                                  activeEntry.boxIndex || activeEntry.entryIndex,
-                                  "age",
-                                  e.target.value ? Number(e.target.value) : undefined
-                                )
-                              }
-                              placeholder="e.g. 34"
-                              className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl"
-                            />
-                          </div>
 
-                          <div className="space-y-1.5">
-                            <div className="flex items-center justify-between">
-                              <label className="text-xs font-bold text-slate-700">Gender</label>
-                              {renderConfidenceBadge(activeEntry.fields.gender.confidence, activeEntry.fields.gender.flag)}
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <label className="text-xs font-bold text-slate-700">Gender</label>
+                                {renderConfidenceBadge(activeEntry.fields.gender.confidence, activeEntry.fields.gender.flag)}
+                              </div>
+                              <select
+                                value={activeEntry.fields.gender.value || ""}
+                                onChange={(e) =>
+                                  handleFieldChange(activeEntry.boxIndex || activeEntry.entryIndex, "gender", e.target.value || undefined)
+                                }
+                                className="w-full px-2.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl"
+                              >
+                                <option value="">-</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                                <option value="Other">Other</option>
+                              </select>
                             </div>
-                            <select
-                              value={activeEntry.fields.gender.value || ""}
-                              onChange={(e) =>
-                                handleFieldChange(activeEntry.boxIndex || activeEntry.entryIndex, "gender", e.target.value || undefined)
-                              }
-                              className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl"
-                            >
-                              <option value="">Not Recorded</option>
-                              <option value="Male">Male</option>
-                              <option value="Female">Female</option>
-                              <option value="Other">Other</option>
-                            </select>
                           </div>
 
                           <div className="space-y-1.5">
@@ -2008,29 +2448,77 @@ export default function PatientScannerPage() {
                               onChange={(e) =>
                                 handleFieldChange(activeEntry.boxIndex || activeEntry.entryIndex, "phone", e.target.value)
                               }
-                              placeholder="10-digit mobile number"
+                              placeholder="Mobile number"
+                              className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-mono"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <label className="text-xs font-bold text-slate-700">Visit Date</label>
+                                {renderConfidenceBadge(activeEntry.fields.visitDate.confidence, activeEntry.fields.visitDate.flag)}
+                              </div>
+                              <input
+                                type="date"
+                                value={activeEntry.fields.visitDate.value || ""}
+                                onChange={(e) =>
+                                  handleFieldChange(activeEntry.boxIndex || activeEntry.entryIndex, "visitDate", e.target.value)
+                                }
+                                className="w-full px-2.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl"
+                              />
+                            </div>
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <label className="text-xs font-bold text-slate-700">Daily Token</label>
+                              </div>
+                              <input
+                                type="text"
+                                value={activeEntry.fields.daily?.value ?? ""}
+                                onChange={(e) =>
+                                  handleFieldChange(activeEntry.boxIndex || activeEntry.entryIndex, "daily", e.target.value)
+                                }
+                                placeholder="Token #"
+                                className="w-full px-2.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-mono text-center"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="sm:col-span-2 space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <label className="text-xs font-bold text-slate-700">Address (Locality / Village / Town)</label>
+                              {renderConfidenceBadge(activeEntry.fields.address?.confidence || 90, activeEntry.fields.address?.flag || "medium")}
+                            </div>
+                            <input
+                              type="text"
+                              value={activeEntry.fields.address?.value || ""}
+                              onChange={(e) =>
+                                handleFieldChange(activeEntry.boxIndex || activeEntry.entryIndex, "address", e.target.value)
+                              }
+                              placeholder="e.g. Vill- Rampur, Dist- Meerut"
                               className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl"
                             />
                           </div>
 
                           <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
-                              <label className="text-xs font-bold text-slate-700">Visit Date</label>
-                              {renderConfidenceBadge(activeEntry.fields.visitDate.confidence, activeEntry.fields.visitDate.flag)}
+                              <label className="text-xs font-bold text-slate-700">Disease / Chief Complaint</label>
+                              {renderConfidenceBadge(activeEntry.fields.disease?.confidence || activeEntry.fields.chiefComplaint?.confidence || 90, activeEntry.fields.disease?.flag || "medium")}
                             </div>
                             <input
-                              type="date"
-                              value={activeEntry.fields.visitDate.value || ""}
+                              type="text"
+                              value={activeEntry.fields.disease?.value || activeEntry.fields.chiefComplaint?.value || ""}
                               onChange={(e) =>
-                                handleFieldChange(activeEntry.boxIndex || activeEntry.entryIndex, "visitDate", e.target.value)
+                                handleFieldChange(activeEntry.boxIndex || activeEntry.entryIndex, "disease", e.target.value)
                               }
+                              placeholder="e.g. Toothache / Caries"
                               className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl"
                             />
                           </div>
 
-                          <div className="sm:col-span-2 space-y-1.5">
+                          <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
-                              <label className="text-xs font-bold text-slate-700">Treatment / Chief Complaint</label>
+                              <label className="text-xs font-bold text-slate-700">Treatment Procedure</label>
                               {renderConfidenceBadge(activeEntry.fields.treatment.confidence, activeEntry.fields.treatment.flag)}
                             </div>
                             <input
@@ -2039,30 +2527,75 @@ export default function PatientScannerPage() {
                               onChange={(e) =>
                                 handleFieldChange(activeEntry.boxIndex || activeEntry.entryIndex, "treatment", e.target.value)
                               }
-                              placeholder="e.g. Filling / Root Canal"
+                              placeholder="e.g. Extraction / Filling"
                               className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl"
                             />
                           </div>
 
-                          <div className="sm:col-span-2 space-y-1.5">
-                            <div className="flex items-center justify-between">
-                              <label className="text-xs font-bold text-slate-700">Notes in Box</label>
-                              {renderConfidenceBadge(activeEntry.fields.dentalNotes.confidence, activeEntry.fields.dentalNotes.flag)}
+                          {/* Cash & Credit Subcolumns */}
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-slate-700">Cash (Rs. / Paise)</label>
+                            <div className="flex items-center space-x-1">
+                              <input
+                                type="number"
+                                min="0"
+                                value={activeEntry.fields.cashRs?.value ?? ""}
+                                onChange={(e) =>
+                                  handleFieldChange(
+                                    activeEntry.boxIndex || activeEntry.entryIndex,
+                                    "cashRs",
+                                    e.target.value ? Number(e.target.value) : undefined
+                                  )
+                                }
+                                placeholder="₹ Cash"
+                                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-mono font-medium"
+                              />
+                              <span className="text-xs text-slate-400">.</span>
+                              <input
+                                type="text"
+                                value={activeEntry.fields.cashPaise?.value ?? ""}
+                                onChange={(e) =>
+                                  handleFieldChange(activeEntry.boxIndex || activeEntry.entryIndex, "cashPaise", e.target.value)
+                                }
+                                placeholder="00"
+                                className="w-14 px-2 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-mono text-center text-slate-500"
+                              />
                             </div>
-                            <textarea
-                              rows={2}
-                              value={activeEntry.fields.dentalNotes.value || ""}
-                              onChange={(e) =>
-                                handleFieldChange(activeEntry.boxIndex || activeEntry.entryIndex, "dentalNotes", e.target.value)
-                              }
-                              placeholder="Notes written in this box..."
-                              className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl"
-                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className="text-xs font-bold text-slate-700">Credit (Rs. / Paise)</label>
+                            <div className="flex items-center space-x-1">
+                              <input
+                                type="number"
+                                min="0"
+                                value={activeEntry.fields.creditRs?.value ?? ""}
+                                onChange={(e) =>
+                                  handleFieldChange(
+                                    activeEntry.boxIndex || activeEntry.entryIndex,
+                                    "creditRs",
+                                    e.target.value ? Number(e.target.value) : undefined
+                                  )
+                                }
+                                placeholder="₹ Credit"
+                                className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-mono font-medium text-amber-700"
+                              />
+                              <span className="text-xs text-slate-400">.</span>
+                              <input
+                                type="text"
+                                value={activeEntry.fields.creditPaise?.value ?? ""}
+                                onChange={(e) =>
+                                  handleFieldChange(activeEntry.boxIndex || activeEntry.entryIndex, "creditPaise", e.target.value)
+                                }
+                                placeholder="00"
+                                className="w-14 px-2 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-mono text-center text-slate-500"
+                              />
+                            </div>
                           </div>
 
                           <div className="space-y-1.5">
                             <div className="flex items-center justify-between">
-                              <label className="text-xs font-bold text-slate-700">Fee Charged (₹)</label>
+                              <label className="text-xs font-bold text-slate-700">Total Fee (₹)</label>
                               {renderConfidenceBadge(activeEntry.fields.amount.confidence, activeEntry.fields.amount.flag)}
                             </div>
                             <input
@@ -2074,8 +2607,8 @@ export default function PatientScannerPage() {
                                 handleFieldChange(activeEntry.boxIndex || activeEntry.entryIndex, "amount", val);
                                 handleFieldChange(activeEntry.boxIndex || activeEntry.entryIndex, "fee", val);
                               }}
-                              placeholder="Fee in ₹"
-                              className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl"
+                              placeholder="Total ₹"
+                              className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-bold font-mono"
                             />
                           </div>
 
@@ -2095,6 +2628,57 @@ export default function PatientScannerPage() {
                               <option value="partial">Partial / Balance Due</option>
                               <option value="unpaid">Unpaid</option>
                             </select>
+                          </div>
+
+                          <div className="sm:col-span-2 space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <label className="text-xs font-bold text-slate-700">Remarks / Follow-up Notes</label>
+                              {renderConfidenceBadge(activeEntry.fields.remarks?.confidence || activeEntry.fields.dentalNotes?.confidence || 90, "high")}
+                            </div>
+                            <textarea
+                              rows={2}
+                              value={activeEntry.fields.remarks?.value || activeEntry.fields.dentalNotes?.value || ""}
+                              onChange={(e) =>
+                                handleFieldChange(activeEntry.boxIndex || activeEntry.entryIndex, "remarks", e.target.value)
+                              }
+                              placeholder="Remarks, next visit notes, or patient instructions..."
+                              className="w-full px-3.5 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Row Layout Correction Bar */}
+                        <div className="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs">
+                          <span className="text-slate-600 font-semibold flex items-center space-x-1.5">
+                            <span>Row #{activeEntry.boxIndex || activeEntry.entryIndex} Corrections:</span>
+                          </span>
+                          <div className="flex items-center space-x-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleMergeWithNext(activeEntry.boxIndex || activeEntry.entryIndex)}
+                              className="px-2.5 py-1 text-xs font-medium text-[#102C46] bg-white border border-slate-200 rounded-lg hover:border-[#16A6A1] flex items-center space-x-1"
+                              title="Merge with subsequent line"
+                            >
+                              <GitMerge className="w-3.5 h-3.5 text-[#16A6A1]" />
+                              <span>Merge Next</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSplitRow(activeEntry.boxIndex || activeEntry.entryIndex)}
+                              className="px-2.5 py-1 text-xs font-medium text-[#102C46] bg-white border border-slate-200 rounded-lg hover:border-indigo-500 flex items-center space-x-1"
+                              title="Split into two rows"
+                            >
+                              <Scissors className="w-3.5 h-3.5 text-indigo-600" />
+                              <span>Split</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteRow(activeEntry.boxIndex || activeEntry.entryIndex)}
+                              className="px-2 py-1 text-xs font-medium text-rose-600 bg-white border border-slate-200 rounded-lg hover:border-rose-400"
+                              title="Delete blank row"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </div>
 
@@ -2214,8 +2798,8 @@ export default function PatientScannerPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {batches.map((b) => (
-                        <tr key={b._id} className="hover:bg-slate-50/70 transition">
+                      {batches.map((b, bIdx) => (
+                        <tr key={b._id ? `batch-${b._id}` : `batch-${bIdx}`} className="hover:bg-slate-50/70 transition">
                           <td className="px-5 py-3">
                             <div className="font-bold text-slate-800">{b.batchName}</div>
                             <div className="text-[11px] text-slate-400 font-mono">{b.batchCode}</div>
@@ -2372,8 +2956,8 @@ export default function PatientScannerPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {scans.map((s) => (
-                        <tr key={s._id} className="hover:bg-slate-50/70 transition">
+                      {scans.map((s, sIdx) => (
+                        <tr key={s._id ? `scan-${s._id}` : `scan-${sIdx}`} className="hover:bg-slate-50/70 transition">
                           <td className="px-5 py-3">
                             <div className="w-12 h-12 bg-slate-900 rounded-lg overflow-hidden flex items-center justify-center border border-slate-200">
                               <img

@@ -538,7 +538,7 @@ export default function AdminCalendarPage() {
               });
               setShowNewAppModal(true);
             }}
-            className="inline-flex items-center justify-center space-x-1.5 bg-[#5f22e6] hover:bg-[#4d1bc4] text-white px-4 py-2 rounded-lg text-xs font-bold shadow-sm transition-colors cursor-pointer"
+            className="inline-flex items-center justify-center space-x-1.5 bg-[#14B8A6] hover:bg-[#0D9488] text-white px-4 py-2 rounded-lg text-xs font-bold shadow-2xs transition-colors cursor-pointer"
           >
             <Plus className="h-4 w-4 mr-0.5" />
             <span>New Appointment</span>
@@ -595,7 +595,7 @@ export default function AdminCalendarPage() {
                     <span
                       className={`text-[11px] font-extrabold h-6 w-6 rounded-full flex items-center justify-center transition-all ${
                         isToday
-                          ? "bg-[#5f22e6] text-white shadow-sm font-bold"
+                          ? "bg-[#14213D] text-[#14B8A6] shadow-2xs font-extrabold"
                           : isCurrentMonth
                           ? "text-slate-700"
                           : "text-slate-300"
@@ -795,7 +795,7 @@ export default function AdminCalendarPage() {
                   <button
                     onClick={() => setIsRescheduling(!isRescheduling)}
                     type="button"
-                    className="text-[10px] text-[#5f22e6] hover:underline font-bold cursor-pointer"
+                    className="text-[10px] text-[#14B8A6] hover:underline font-bold cursor-pointer"
                   >
                     {isRescheduling ? "Cancel" : "Change Date/Time"}
                   </button>
@@ -827,7 +827,7 @@ export default function AdminCalendarPage() {
                       onClick={handleSaveReschedule}
                       disabled={savingReschedule}
                       type="button"
-                      className="w-full bg-[#5f22e6] hover:bg-[#4d1bc4] disabled:opacity-75 disabled:cursor-not-allowed text-white text-[10px] font-bold py-1.5 px-3 rounded-lg transition-colors flex items-center justify-center gap-1 cursor-pointer"
+                      className="w-full bg-[#14B8A6] hover:bg-[#0D9488] disabled:opacity-75 disabled:cursor-not-allowed text-white text-[10px] font-bold py-1.5 px-3 rounded-lg transition-colors flex items-center justify-center gap-1 cursor-pointer"
                     >
                       {savingReschedule ? (
                         <>
@@ -896,7 +896,7 @@ export default function AdminCalendarPage() {
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <h3 className="text-sm font-bold text-slate-800 flex items-center space-x-2">
-                <Plus className="h-5 w-5 text-[#5f22e6]" />
+                <Plus className="h-5 w-5 text-[#14B8A6]" />
                 <span>Schedule New Appointment</span>
               </h3>
               <button
@@ -1028,7 +1028,7 @@ export default function AdminCalendarPage() {
               <button
                 type="submit"
                 disabled={savingNewApp}
-                className="bg-[#5f22e6] hover:bg-[#4d1bc4] text-white px-5.5 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center justify-center space-x-1 cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
+                className="bg-[#14B8A6] hover:bg-[#0D9488] text-white px-5.5 py-2 rounded-lg text-xs font-bold transition-colors flex items-center justify-center space-x-1 cursor-pointer disabled:opacity-75 disabled:cursor-not-allowed"
               >
                 {savingNewApp ? (
                   <>

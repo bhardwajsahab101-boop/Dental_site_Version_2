@@ -25,23 +25,31 @@ export interface IScanEntry {
   unreadableFields?: string[];
   fields: {
     sNo?: IScanField<string | number>;
+    daily?: IScanField<string | number>;
     fullName: IScanField<string>;
     age: IScanField<number>;
     gender: IScanField<"Male" | "Female" | "Other">;
     phone: IScanField<string>;
+    address?: IScanField<string>;
     visitDate: IScanField<string>;
     patientCode: IScanField<string>;
+    disease?: IScanField<string>;
     chiefComplaint?: IScanField<string>;
     treatment: IScanField<string>;
     dentalNotes: IScanField<string>;
     prescribedTreatment: IScanField<string>;
     prescribedMedication?: IScanField<string>;
+    cashRs?: IScanField<number>;
+    cashPaise?: IScanField<string | number>;
+    creditRs?: IScanField<number>;
+    creditPaise?: IScanField<string | number>;
     fee?: IScanField<number>;
     amount: IScanField<number>;
     paymentStatus: IScanField<"paid" | "partial" | "unpaid">;
     followUpDate: IScanField<string>;
     nextAppointmentDate?: IScanField<string>;
     remarks?: IScanField<string>;
+    extraFields?: Record<string, any>;
   };
   confidenceScores?: Record<string, number>;
   savedPatientId?: mongoose.Types.ObjectId;
@@ -64,6 +72,10 @@ export interface ILayoutMetadata {
   columnsDetected: number;
   rowsDetected: number;
   regionsDetected: number;
+  totalCellsDetected?: number;
+  totalRowsDetected?: number;
+  columnDividers?: number[];
+  rowDividers?: number[];
   requiresManualReview: boolean;
   detectedHeaders?: string[];
   qualityAssessment?: {
@@ -160,23 +172,31 @@ const scanEntrySchema = new Schema<IScanEntry>(
     confidenceScores: { type: Schema.Types.Mixed },
     fields: {
       sNo: { type: scanFieldSchema },
+      daily: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       fullName: { type: scanFieldSchema, required: true },
       age: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       gender: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       phone: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
+      address: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       visitDate: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       patientCode: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
+      disease: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       chiefComplaint: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       treatment: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       dentalNotes: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       prescribedTreatment: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       prescribedMedication: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
+      cashRs: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
+      cashPaise: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
+      creditRs: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
+      creditPaise: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       fee: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       amount: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       paymentStatus: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       followUpDate: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       nextAppointmentDate: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
       remarks: { type: scanFieldSchema, default: () => ({ confidence: 0, flag: "missing" }) },
+      extraFields: { type: Schema.Types.Mixed },
     },
     savedPatientId: { type: Schema.Types.ObjectId, ref: "Patient" },
     savedPatientCode: { type: String },
@@ -251,6 +271,10 @@ const scanDocumentSchema = new Schema<IScanDocument>(
       columnsDetected: { type: Number },
       rowsDetected: { type: Number },
       regionsDetected: { type: Number },
+      totalCellsDetected: { type: Number },
+      totalRowsDetected: { type: Number },
+      columnDividers: [{ type: Number }],
+      rowDividers: [{ type: Number }],
       requiresManualReview: { type: Boolean, default: false },
       detectedHeaders: [{ type: String }],
       qualityAssessment: { type: Schema.Types.Mixed },

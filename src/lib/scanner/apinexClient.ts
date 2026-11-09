@@ -28,10 +28,11 @@ export function normalizeRegisterDate(dateStr?: string | null): string | null {
 }
 
 /**
- * Strict Zod Schema for Extracted Patient Entry
+ * Strict Zod Schema for Extracted Patient Entry adhering to Clinic Register
  */
 export const ExtractedPatientSchema = z.object({
   sNo: z.union([z.string(), z.number()]).nullable().optional(),
+  daily: z.union([z.string(), z.number()]).nullable().optional(),
   name: z.string().min(1, "Patient name is required"),
   age: z
     .union([z.string(), z.number()])
@@ -47,8 +48,8 @@ export const ExtractedPatientSchema = z.object({
     .transform((val) => {
       if (!val) return null;
       const lower = String(val).toLowerCase();
-      if (lower.startsWith("m") || lower.includes("पुरुष")) return "Male" as const;
-      if (lower.startsWith("f") || lower.includes("महिला") || lower.includes("स्त्री")) return "Female" as const;
+      if (lower.startsWith("m") || lower.includes("पुरुष") || lower === "m") return "Male" as const;
+      if (lower.startsWith("f") || lower.includes("महिला") || lower.includes("स्त्री") || lower === "f") return "Female" as const;
       if (lower.startsWith("o")) return "Other" as const;
       return null;
     }),
@@ -61,14 +62,16 @@ export const ExtractedPatientSchema = z.object({
       const clean = val.replace(/\D/g, "");
       return clean.length >= 7 ? clean.slice(-10) : null;
     }),
+  address: z.string().nullable().optional().transform((v) => (v === "-" || v === "--" || !v ? null : v.trim())),
   patientCode: z.string().nullable().optional(),
   visitDate: z
     .string()
     .nullable()
     .optional()
     .transform((val) => normalizeRegisterDate(val)),
+  disease: z.string().nullable().optional().transform((v) => (v === "-" || v === "--" || !v ? null : v.trim())),
   chiefComplaint: z.string().nullable().optional(),
-  treatment: z.string().nullable().optional(),
+  treatment: z.string().nullable().optional().transform((v) => (v === "-" || v === "--" || !v ? null : v.trim())),
   dentalNotes: z.string().nullable().optional(),
   prescribedMedication: z.string().nullable().optional(),
   nextVisitDate: z
@@ -76,6 +79,26 @@ export const ExtractedPatientSchema = z.object({
     .nullable()
     .optional()
     .transform((val) => normalizeRegisterDate(val)),
+  cashRs: z
+    .union([z.string(), z.number()])
+    .nullable()
+    .optional()
+    .transform((val) => {
+      if (val === null || val === undefined || val === "" || val === "-" || val === "--") return null;
+      const num = typeof val === "number" ? val : parseFloat(String(val).replace(/[^0-9.]/g, ""));
+      return isNaN(num) || num < 0 ? null : Math.round(num);
+    }),
+  cashPaise: z.union([z.string(), z.number()]).nullable().optional(),
+  creditRs: z
+    .union([z.string(), z.number()])
+    .nullable()
+    .optional()
+    .transform((val) => {
+      if (val === null || val === undefined || val === "" || val === "-" || val === "--") return null;
+      const num = typeof val === "number" ? val : parseFloat(String(val).replace(/[^0-9.]/g, ""));
+      return isNaN(num) || num < 0 ? null : Math.round(num);
+    }),
+  creditPaise: z.union([z.string(), z.number()]).nullable().optional(),
   amount: z
     .union([z.string(), z.number()])
     .nullable()
@@ -101,10 +124,11 @@ export const ExtractedPatientSchema = z.object({
       const lower = String(val).toLowerCase();
       if (lower.includes("paid") || lower.includes("जमा")) return "paid" as const;
       if (lower.includes("partial") || lower.includes("advance") || lower.includes("bal")) return "partial" as const;
-      if (lower.includes("due") || lower.includes("unpaid") || lower.includes("pending")) return "unpaid" as const;
+      if (lower.includes("due") || lower.includes("unpaid") || lower.includes("credit") || lower.includes("उधार") || lower.includes("pending")) return "unpaid" as const;
       return null;
     }),
-  remarks: z.string().nullable().optional().transform((val) => (val === "-" || val === "--" ? null : val)),
+  remarks: z.string().nullable().optional().transform((val) => (val === "-" || val === "--" || !val ? null : val.trim())),
+  lineCount: z.number().optional().default(1),
   unreadableFields: z.array(z.string()).default([]),
   confidence: z.record(z.string(), z.number()).default({}),
   boxIndex: z.number().optional(),
@@ -188,58 +212,68 @@ export async function callAPInexRegisterExtraction(
     const promptText = `You are an expert clinical digitization and layout-understanding assistant for Anil Sharma Dental Hospital.
 Analyze this handwritten dental clinic outpatient register photograph with highest fidelity.
 
-STEP 1: AUTOMATIC REGISTER LAYOUT DETECTION
-Classify the page layout into one of these 4 categories:
-1. "COLUMN_BASED": Traditional table with header columns across the top (e.g. S.No, Name, Age/Sex, Phone No, Visit Date, Treatment, Next Visit, Remarks, Fee, Payment, Signature) and horizontal rows for each patient visit.
-2. "BOX_BASED": Individual rectangular or square patient-entry boxes arranged in multiple vertical columns.
-3. "FREE_FORM": Handwritten entries without consistent grid lines.
-4. "MIXED_LAYOUT": Combination of tables, boxes, and unstructured notes.
+PHYSICAL REGISTER LAYOUT & COLUMN STRUCTURE:
+The ledger has 11 main columns (Cash and Credit contain separate subcolumns for Rs. and Paise):
+1. "Date": Visit date (DD/MM/YYYY, DD-MM-YY, etc.).
+2. "Serial Number": Entry serial number (1, 2, 3, etc.).
+3. "Daily": Daily OPD token / patient sequence number.
+4. "Name": Patient name. Note: Phone numbers are often written alongside or underneath the name (e.g. "Rakesh 9876543210" or "Suman (9123456789)").
+5. "Age": Patient age (often includes gender e.g. "34/M", "28/F", "45 Y Male").
+6. "Address": Patient locality, village, city, or address notes.
+7. "Disease": Chief complaint, clinical diagnosis, dental condition (e.g. toothache, pulpitis, caries, swelling).
+8. "Treatment": Procedure done, medication prescribed, or clinical advice (e.g. Filling, Extraction, RCT, Scaling, Crown).
+9. "Cash": Subcolumns: "Rs." (Cash Rupees) and "Paise".
+10. "Credit": Subcolumns: "Rs." (Credit / Balance Due Rupees) and "Paise".
+11. "Remark": Remarks, follow-up date, doctor notes, or signature.
 
-Detect:
-- "layoutType": "COLUMN_BASED" | "BOX_BASED" | "FREE_FORM" | "MIXED_LAYOUT"
-- "layoutConfidence": float between 0.0 and 1.0
-- "detectedColumns": list of all column headers read from the header row (e.g. ["S.No.", "Name", "Age / Sex", "Phone No.", "Visit Date", "Treatment", "Next Visit", "Remarks", "Fee", "Payment", "Signature"])
-- "columnCount": total number of columns
-- "rowCount": total number of patient data rows
-
-STEP 2: COMPLETE DATA EXTRACTION
-Extract EVERY detected patient row/box from the register. Do NOT truncate or skip any entries.
-If there are 10 patient entries (e.g. S.No 1 to 10), extract all 10 entries!
-
-CRITICAL MEDICAL FIDELITY RULES:
-1. Zero fabrication: The uploaded image is the SOLE source of truth. If a field is blank, missing, unrecorded, or marked with '--' or '-', set it to null.
-2. Visit Dates: Extract the EXACT date written on the register (e.g. "14/01/25", "15/01/25", "16/01/25", "17/01/25", "18/01/25"). NEVER insert or default to today's date! If no date is written, return null.
-3. Next Visit: Extract next appointment date (e.g. "28/01/25", "29/01/25", "30/01/25", "31/01/25", "01/02/25", or null if '--').
-4. Fee & Amount: Extract numeric fee (e.g. 800, 600, 1200, 1500, 2500, 500).
-5. Payment Status: Map "Paid" -> "paid", "Due" -> "unpaid", "Partial" -> "partial".
-6. Remarks: Preserve all remarks (e.g. "OK", "Good", "Pain").
-7. Unreadable Handwriting: If a value cannot be deciphered with high confidence, set it to null, add the field name to "unreadableFields", and give confidence < 0.5.
+CRITICAL LOGICAL PATIENT ENTRY GROUPING (DO NOT SPLIT MULTILINE ENTRIES):
+1. In this register, a patient's information CAN OCCUPY MULTIPLE HANDWRITTEN LINES (1, 2, or 3 lines vertically)!
+   - Long addresses, disease details, and treatment notes frequently wrap onto subsequent lines.
+   - DO NOT treat each horizontal line or cell as a separate patient.
+   - Anchor each logical patient entry by the Serial Number, Daily number, and Date at the start of the row.
+   - Group all lines and text within the vertical span of that patient into ONE complete record.
+2. Repeated Dates & Ditto Marks:
+   - If the Date column has a ditto mark ('"', 'do', '—') or is left blank below a previous date, it represents the SAME date as the entry above.
+3. Financial Subcolumns:
+   - Extract "cashRs" and "cashPaise" from the Cash subcolumns.
+   - Extract "creditRs" and "creditPaise" from the Credit subcolumns.
+   - Compute total amount / fee as (cashRs + creditRs).
+   - If creditRs > 0 and cashRs > 0, paymentStatus is "partial".
+   - If creditRs > 0 and cashRs == 0, paymentStatus is "unpaid".
+   - If creditRs == 0 and cashRs > 0, paymentStatus is "paid".
+4. Embedded Phone Numbers:
+   - If a 10-digit mobile number is written in the Name or Address column, extract it to "phone" and remove it from the patient name.
+5. Zero Fabrication:
+   - The photograph is the SOLE source of truth. If a field is blank, unwritten, or dashed ("-", "--"), return null. Never fabricate fake names or default dates to today!
 
 Return strictly a JSON object adhering to:
 {
-  "layoutType": "COLUMN_BASED" | "BOX_BASED" | "FREE_FORM" | "MIXED_LAYOUT",
+  "layoutType": "COLUMN_BASED",
   "layoutConfidence": number,
-  "detectedColumns": ["S.No.", "Name", "Age / Sex", "Phone No.", "Visit Date", "Treatment", "Next Visit", "Remarks", "Fee", "Payment"],
-  "columnCount": number,
+  "detectedColumns": ["Date", "Serial Number", "Daily", "Name", "Age", "Address", "Disease", "Treatment", "Cash (Rs., Paise)", "Credit (Rs., Paise)", "Remark"],
+  "columnCount": 11,
   "rowCount": number,
   "patients": [
     {
       "sNo": "1",
+      "daily": "1",
+      "visitDate": "YYYY-MM-DD",
       "name": "string",
+      "phone": "string (10 digits)" | null,
       "age": number | null,
       "gender": "Male" | "Female" | "Other" | null,
-      "phone": "string (10 digits)" | null,
-      "patientCode": "string" | null,
-      "visitDate": "string" | null,
-      "chiefComplaint": "string" | null,
+      "address": "string" | null,
+      "disease": "string" | null,
       "treatment": "string" | null,
-      "dentalNotes": "string" | null,
-      "prescribedMedication": "string" | null,
-      "nextVisitDate": "string" | null,
-      "fee": number | null,
+      "cashRs": number | null,
+      "cashPaise": "string" | null,
+      "creditRs": number | null,
+      "creditPaise": "string" | null,
       "amount": number | null,
+      "fee": number | null,
       "paymentStatus": "paid" | "partial" | "unpaid" | null,
       "remarks": "string" | null,
+      "lineCount": number,
       "unreadableFields": ["string"],
       "confidence": {
         "name": 0.0 - 1.0,
@@ -360,13 +394,73 @@ Return strictly a JSON object adhering to:
           patients: parsedRaw.patients || parsedRaw.patientEntries || [],
         };
 
-    // Ensure fee and amount are synchronized
+    // Ensure fee, amount, financial subcolumns, and embedded details are synchronized
     if (Array.isArray(rawToValidate.patients)) {
-      rawToValidate.patients = rawToValidate.patients.map((p: any) => ({
-        ...p,
-        fee: p.fee !== undefined ? p.fee : p.amount,
-        amount: p.amount !== undefined ? p.amount : p.fee,
-      }));
+      let lastKnownDate: string | null = null;
+
+      rawToValidate.patients = rawToValidate.patients.map((p: any) => {
+        // 1. Inherit date for repeated ditto marks or blank rows
+        let vDate = p.visitDate || p.date;
+        if (vDate && vDate !== '"' && vDate !== "do" && vDate !== "—" && vDate !== "-") {
+          lastKnownDate = vDate;
+        } else if ((!vDate || vDate === '"' || vDate === "do" || vDate === "—" || vDate === "-") && lastKnownDate) {
+          vDate = lastKnownDate;
+        }
+
+        // 2. Extract phone embedded in Name if phone is absent
+        let pName = p.name || p.fullName || "";
+        let pPhone = p.phone;
+        if (!pPhone && pName) {
+          const match = pName.match(/\b(?:(?:\+?91[\-\s]?)?[6-9]\d{9}|\d{10})\b/);
+          if (match) {
+            pPhone = match[0].replace(/\D/g, "");
+            pName = pName.replace(match[0], "").replace(/[\(\)\[\]\/\-,]/g, " ").trim();
+          }
+        }
+
+        // 3. Extract gender from Age if noted like "34/M" or "28 F"
+        let pAge = p.age;
+        let pGender = p.gender;
+        if (typeof pAge === "string" && !pGender) {
+          if (/\b(m|male|पुरुष)\b/i.test(pAge)) pGender = "Male";
+          else if (/\b(f|female|महिला|स्त्री)\b/i.test(pAge)) pGender = "Female";
+        }
+
+        // 4. Financial calculation from Cash and Credit subcolumns
+        const cash = Number(p.cashRs ?? p.cash ?? 0);
+        const credit = Number(p.creditRs ?? p.credit ?? 0);
+        let totalAmt = p.amount !== undefined ? Number(p.amount) : (p.fee !== undefined ? Number(p.fee) : (cash + credit));
+        if (totalAmt === 0 && (cash > 0 || credit > 0)) {
+          totalAmt = cash + credit;
+        }
+
+        let pStatus = p.paymentStatus;
+        if (!pStatus) {
+          if (credit > 0 && cash > 0) pStatus = "partial";
+          else if (credit > 0 && cash === 0) pStatus = "unpaid";
+          else if (cash > 0) pStatus = "paid";
+          else if (totalAmt > 0) pStatus = "paid";
+        }
+
+        return {
+          ...p,
+          name: pName,
+          phone: pPhone,
+          age: pAge,
+          gender: pGender,
+          visitDate: vDate,
+          disease: p.disease || p.chiefComplaint || null,
+          treatment: p.treatment || null,
+          address: p.address || null,
+          cashRs: p.cashRs !== undefined ? p.cashRs : (cash > 0 ? cash : null),
+          cashPaise: p.cashPaise !== undefined ? p.cashPaise : null,
+          creditRs: p.creditRs !== undefined ? p.creditRs : (credit > 0 ? credit : null),
+          creditPaise: p.creditPaise !== undefined ? p.creditPaise : null,
+          fee: totalAmt > 0 ? totalAmt : null,
+          amount: totalAmt > 0 ? totalAmt : null,
+          paymentStatus: pStatus,
+        };
+      });
     }
 
     const validationResult = APInexExtractionResponseSchema.safeParse(rawToValidate);

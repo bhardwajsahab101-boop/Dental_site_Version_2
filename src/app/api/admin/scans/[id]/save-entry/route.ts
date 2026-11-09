@@ -10,6 +10,79 @@ import { Treatment, computePaymentFields } from "@/src/models/treatment";
 import { Counter } from "@/src/models/Counter";
 import { logActivity } from "@/src/lib/audit";
 
+function safeExtractString(field: any): string | undefined {
+  if (field === null || field === undefined) return undefined;
+  let raw: any = field;
+  if (typeof raw === "object") {
+    if ("value" in raw) {
+      raw = raw.value;
+    } else {
+      return undefined;
+    }
+  }
+  if (raw === null || raw === undefined) return undefined;
+  if (typeof raw === "object") return undefined;
+  const s = String(raw).trim();
+  if (!s || s.toLowerCase() === "nan" || s.toLowerCase() === "undefined" || s.toLowerCase() === "null") {
+    return undefined;
+  }
+  return s;
+}
+
+function safeExtractNumber(field: any): number | undefined {
+  if (field === null || field === undefined) return undefined;
+  let raw: any = field;
+  if (typeof raw === "object") {
+    if ("value" in raw) {
+      raw = raw.value;
+    } else {
+      return undefined;
+    }
+  }
+  if (raw === null || raw === undefined) return undefined;
+  if (typeof raw === "object") return undefined;
+  if (typeof raw === "number") {
+    return (!isNaN(raw) && isFinite(raw) && raw >= 0) ? raw : undefined;
+  }
+  const cleaned = String(raw).replace(/[^0-9.-]/g, "").trim();
+  if (!cleaned) return undefined;
+  const num = Number(cleaned);
+  return (!isNaN(num) && isFinite(num) && num >= 0) ? num : undefined;
+}
+
+function safeExtractGender(field: any): "Male" | "Female" | "Other" | undefined {
+  const str = safeExtractString(field);
+  if (!str) return undefined;
+  const lower = str.toLowerCase();
+  if (lower === "male" || lower === "m" || lower.startsWith("m/") || lower === "man" || lower === "boy") {
+    return "Male";
+  }
+  if (lower === "female" || lower === "f" || lower.startsWith("f/") || lower === "woman" || lower === "girl") {
+    return "Female";
+  }
+  if (lower === "other" || lower === "o") {
+    return "Other";
+  }
+  return undefined;
+}
+
+function safeExtractPhone(field: any): string {
+  const str = safeExtractString(field);
+  if (!str) return "Not Provided";
+  const digits = str.replace(/\D/g, "");
+  if (digits.length >= 7) return digits.slice(-10);
+  return "Not Provided";
+}
+
+function safeExtractDate(field: any): Date {
+  const str = safeExtractString(field);
+  if (str) {
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return new Date();
+}
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -60,39 +133,67 @@ export async function POST(
     // Apply any customized fields submitted during confirmation
     if (customFields) {
       for (const k of Object.keys(customFields)) {
-        if ((entry.fields as any)[k]) {
-          (entry.fields as any)[k].value = customFields[k];
-          (entry.fields as any)[k].confidence = 100;
-          (entry.fields as any)[k].flag = "high";
+        if ((entry.fields as any)[k] !== undefined) {
+          let customVal = customFields[k];
+          if (typeof customVal === "object" && customVal !== null) {
+            customVal = "value" in customVal ? customVal.value : undefined;
+          }
+          if (typeof customVal === "object" && customVal !== null) {
+            customVal = undefined;
+          }
+          (entry.fields as any)[k] = {
+            value: customVal,
+            confidence: 100,
+            flag: customVal != null && customVal !== "" ? "high" : "missing",
+          };
         }
       }
     }
 
-    const fullName = (entry.fields.fullName.value || "").trim();
-    if (!fullName) {
-      return NextResponse.json(
-        { success: false, message: "Patient name is required before saving." },
-        { status: 400 }
-      );
-    }
+    const rawAge = customFields?.age !== undefined ? customFields.age : entry.fields.age;
+    const rawGender = customFields?.gender !== undefined ? customFields.gender : entry.fields.gender;
+    const rawName = customFields?.fullName !== undefined ? customFields.fullName : entry.fields.fullName;
+    const rawPhone = customFields?.phone !== undefined ? customFields.phone : entry.fields.phone;
+    const rawAddress = customFields?.address !== undefined ? customFields.address : entry.fields.address;
+    const rawDisease = customFields?.disease !== undefined ? customFields.disease : (entry.fields.disease || entry.fields.chiefComplaint);
+    const rawTreatment = customFields?.treatment !== undefined ? customFields.treatment : entry.fields.treatment;
+    const rawVisitDate = customFields?.visitDate !== undefined ? customFields.visitDate : entry.fields.visitDate;
+    const rawRemarks = customFields?.remarks !== undefined ? customFields.remarks : (entry.fields.remarks || entry.fields.dentalNotes);
+    const rawDaily = customFields?.daily !== undefined ? customFields.daily : entry.fields.daily;
+    const rawSNo = customFields?.sNo !== undefined ? customFields.sNo : entry.fields.sNo;
+    const rawCashRs = customFields?.cashRs !== undefined ? customFields.cashRs : entry.fields.cashRs;
+    const rawCashPaise = customFields?.cashPaise !== undefined ? customFields.cashPaise : entry.fields.cashPaise;
+    const rawCreditRs = customFields?.creditRs !== undefined ? customFields.creditRs : entry.fields.creditRs;
+    const rawCreditPaise = customFields?.creditPaise !== undefined ? customFields.creditPaise : entry.fields.creditPaise;
+    const rawFee = customFields?.fee !== undefined ? customFields.fee : (entry.fields.fee ?? entry.fields.amount);
+    const rawPaymentStatus = customFields?.paymentStatus !== undefined ? customFields.paymentStatus : entry.fields.paymentStatus;
 
-    const phone = entry.fields.phone.value ? entry.fields.phone.value.replace(/\D/g, "") : "";
-    const age = entry.fields.age.value ? Number(entry.fields.age.value) : undefined;
-    const gender = entry.fields.gender.value || undefined;
-    const treatmentName = entry.fields.treatment.value || "General Dental Consultation";
-    const dentalNotes = entry.fields.dentalNotes.value || "Imported from handwritten patient register scan";
-    const amount = entry.fields.fee?.value
-      ? Number(entry.fields.fee.value)
-      : (entry.fields.amount?.value ? Number(entry.fields.amount.value) : 0);
-    const paymentStatus = entry.fields.paymentStatus.value || (amount > 0 ? "paid" : "unpaid");
+    const fullName = safeExtractString(rawName) || `Patient #${entry.boxIndex || entry.entryIndex || 1}`;
+    const phone = safeExtractPhone(rawPhone);
+    const age = safeExtractNumber(rawAge);
+    const gender = safeExtractGender(rawGender);
+    const address = safeExtractString(rawAddress);
+    const diseaseName = safeExtractString(rawDisease) || "";
+    const treatmentName = safeExtractString(rawTreatment) || (diseaseName ? `Care for: ${diseaseName}` : "General Dental Consultation");
+    const remarks = safeExtractString(rawRemarks) || "";
+    const sNo = safeExtractString(rawSNo) || String(entry.boxIndex || entry.entryIndex || "");
+    const daily = safeExtractString(rawDaily) || "";
+    const cashPaise = safeExtractString(rawCashPaise) || "";
+    const creditPaise = safeExtractString(rawCreditPaise) || "";
+    const dailyToken = daily ? `Daily #${daily}` : "";
+    const dentalNotes = safeExtractString(customFields?.dentalNotes || entry.fields.dentalNotes) || [diseaseName ? `Diagnosis: ${diseaseName}` : "", remarks ? `Remark: ${remarks}` : "", dailyToken].filter(Boolean).join(" | ") || "Imported from register scan";
 
-    let visitDate = new Date();
-    if (entry.fields.visitDate.value) {
-      const parsed = new Date(entry.fields.visitDate.value);
-      if (!isNaN(parsed.getTime())) {
-        visitDate = parsed;
-      }
-    }
+    const cashRs = safeExtractNumber(rawCashRs);
+    const creditRs = safeExtractNumber(rawCreditRs);
+    const totalAmount = (cashRs != null || creditRs != null)
+      ? ((cashRs || 0) + (creditRs || 0))
+      : (safeExtractNumber(rawFee) ?? 0);
+    const paidAmount = cashRs != null ? cashRs : (safeExtractString(rawPaymentStatus) === "paid" ? totalAmount : 0);
+    const paymentStatus = (creditRs != null && creditRs > 0)
+      ? ((cashRs && cashRs > 0) ? "partial" : "unpaid")
+      : (safeExtractString(rawPaymentStatus) || (totalAmount > 0 ? "paid" : "unpaid"));
+
+    const visitDate = safeExtractDate(rawVisitDate);
 
     let targetPatientId: mongoose.Types.ObjectId;
     let targetPatientCode: string;
@@ -111,8 +212,19 @@ export async function POST(
         phone: phone || "Not Provided",
         age,
         gender,
+        address: address || undefined,
         patientCode,
         medicalNotes: `Register entry note: ${dentalNotes}`,
+        sNo: sNo || undefined,
+        daily: daily || undefined,
+        disease: diseaseName || undefined,
+        treatment: treatmentName || undefined,
+        cashRs: cashRs ?? undefined,
+        cashPaise: cashPaise || undefined,
+        creditRs: creditRs ?? undefined,
+        creditPaise: creditPaise || undefined,
+        remarks: remarks || undefined,
+        visitDate,
         createdBy: user.userId,
       });
 
@@ -145,6 +257,9 @@ export async function POST(
         if (gender && !existingPatient.gender) {
           existingPatient.gender = gender;
         }
+        if (address && !existingPatient.address) {
+          existingPatient.address = address;
+        }
         if (dentalNotes) {
           existingPatient.medicalNotes = `${existingPatient.medicalNotes || ""}\n[Scan Import ${visitDate.toLocaleDateString()}]: ${dentalNotes}`.trim();
         }
@@ -163,22 +278,30 @@ export async function POST(
       appointmentTime: "10:00 AM",
       status: "completed",
       notes: `${dentalNotes} (Register Scan: ${scan.fileName})`,
+      sNo: sNo || undefined,
+      daily: daily || undefined,
+      disease: diseaseName || undefined,
+      treatment: treatmentName || undefined,
+      cashRs: cashRs ?? undefined,
+      cashPaise: cashPaise || undefined,
+      creditRs: creditRs ?? undefined,
+      creditPaise: creditPaise || undefined,
+      remarks: remarks || undefined,
       createdBy: user.userId,
     });
 
-    if (treatmentName || amount > 0) {
-      const paymentInfo = computePaymentFields(amount, paymentStatus === "paid" ? amount : 0);
+    if (treatmentName || totalAmount > 0) {
       await Treatment.create({
         clinicId: user.clinicId,
         patientId: targetPatientId,
         appointmentId: appointment._id,
         treatmentName,
-        diagnosis: treatmentName,
+        diagnosis: diseaseName || treatmentName,
         toothNumber: "General",
-        notes: dentalNotes,
-        cost: paymentInfo.cost,
-        paidAmount: paymentInfo.paidAmount,
-        paymentStatus: paymentInfo.paymentStatus,
+        notes: `${dentalNotes}${creditRs ? ` [Credit Rs: ${creditRs}]` : ""}${cashRs ? ` [Cash Rs: ${cashRs}]` : ""}`,
+        cost: totalAmount,
+        paidAmount: paidAmount,
+        paymentStatus: paymentStatus as any,
         status: "completed",
         createdBy: user.userId,
       });

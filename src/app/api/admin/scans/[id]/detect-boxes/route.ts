@@ -48,8 +48,9 @@ export async function POST(
     const filePath = path.join(process.cwd(), "private_storage", "scans", scan.storedFileName);
 
     let detectedBoxes = null;
+    let cvRes: any = null;
     if (autoDetectWithOpenCV && fs.existsSync(filePath)) {
-      const cvRes = await runOpenCVGridDetection(filePath, {
+      cvRes = await runOpenCVGridDetection(filePath, {
         expectedCols: columnsCount,
         readingOrder,
       });
@@ -83,11 +84,32 @@ export async function POST(
     }));
 
     // Update scan metadata
-    scan.layoutType = "grid_boxes";
+    const resolvedLayoutType: "COLUMN_BASED" | "BOX_BASED" | "FREE_FORM" | "MIXED_LAYOUT" =
+      cvRes?.layoutType ||
+      (scan.layoutType === "grid_boxes" ? "BOX_BASED" :
+       scan.layoutType === "table_rows" ? "COLUMN_BASED" :
+       scan.layoutType as any) ||
+      (finalCols >= 5 ? "COLUMN_BASED" : "BOX_BASED");
+
+    scan.layoutType = resolvedLayoutType;
     scan.columnsDetected = finalCols;
     scan.readingOrder = finalOrder;
+    if (cvRes?.layoutMetadata || cvRes?.regionsDetected) {
+      scan.layoutMetadata = {
+        layoutType: resolvedLayoutType,
+        confidence: cvRes?.confidence || 0.92,
+        columnsDetected: finalCols,
+        rowsDetected: gridBoxes.length,
+        regionsDetected: cvRes?.regionsDetected || cvRes?.totalCellsDetected || gridBoxes.length,
+        totalCellsDetected: cvRes?.totalCellsDetected || cvRes?.regionsDetected || gridBoxes.length,
+        totalRowsDetected: gridBoxes.length,
+        requiresManualReview: cvRes?.requiresManualReview || false,
+        columnDividers: cvRes?.columnDividers || [],
+        rowDividers: cvRes?.rowDividers || [],
+      };
+    }
 
-    // Adjust entries to match grid boxes
+    // Adjust entries to match grid boxes without inventing fake data
     const newEntries = gridBoxes.map((box: any, idx: number) => {
       const boxCoords = box.coordinates || {
         x: box.x,
@@ -95,9 +117,9 @@ export async function POST(
         width: box.width,
         height: box.height,
       };
-      const bIndex = box.boxIndex ?? box.index ?? idx + 1;
+      const bIndex = (box.boxIndex && box.boxIndex > 0) ? box.boxIndex : ((box.index && box.index > 0) ? box.index : idx + 1);
       const bCol = box.colIndex ?? box.col ?? 0;
-      const bRow = box.rowIndex ?? box.row ?? 0;
+      const bRow = box.rowIndex ?? box.row ?? idx;
 
       const existing = scan.entries[idx];
       if (existing) {
@@ -107,6 +129,8 @@ export async function POST(
         existing.boxCoordinates = boxCoords;
         return existing;
       }
+
+      // New entry detected geometrically: never insert fake names or dates!
       return {
         entryIndex: bIndex,
         boxIndex: bIndex,
@@ -114,12 +138,14 @@ export async function POST(
         rowIndex: bRow,
         boxCoordinates: boxCoords,
         status: "pending" as const,
+        unreadableFields: ["name", "phone", "treatment"],
         fields: {
-          fullName: { value: `Patient in Box ${bIndex}`, confidence: 30, flag: "low" as const },
+          sNo: { value: String(bIndex), confidence: 80, flag: "medium" as const },
+          fullName: { confidence: 0, flag: "missing" as const },
           age: { confidence: 0, flag: "missing" as const },
           gender: { confidence: 0, flag: "missing" as const },
           phone: { confidence: 0, flag: "missing" as const },
-          visitDate: { value: new Date().toISOString().split("T")[0], confidence: 70, flag: "medium" as const },
+          visitDate: { confidence: 0, flag: "missing" as const },
           patientCode: { confidence: 0, flag: "missing" as const },
           treatment: { confidence: 0, flag: "missing" as const },
           dentalNotes: { confidence: 0, flag: "missing" as const },
@@ -127,6 +153,7 @@ export async function POST(
           amount: { confidence: 0, flag: "missing" as const },
           paymentStatus: { confidence: 0, flag: "missing" as const },
           followUpDate: { confidence: 0, flag: "missing" as const },
+          remarks: { confidence: 0, flag: "missing" as const },
         },
       };
     });

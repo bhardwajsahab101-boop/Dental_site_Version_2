@@ -1,4 +1,12 @@
 import React from "react";
+import {
+  CalendarDays,
+  Clock,
+  CheckCircle2,
+  MessageSquare,
+  Users,
+  Stethoscope
+} from "lucide-react";
 
 interface DashboardStatsCardsProps {
   totalPatients: number;
@@ -25,65 +33,68 @@ export default function DashboardStatsCards({
 }: DashboardStatsCardsProps) {
   const stats = [
     {
-      title: "Total Requests",
+      title: "Total Appointments",
       value: totalAppointments,
-      emoji: "📅",
-      color: "text-[#102C46] bg-slate-100 border-slate-200",
+      icon: CalendarDays,
+      iconBg: "bg-[#14213D]/5 text-[#14213D] border-[#14213D]/10",
     },
     {
       title: "Pending Requests",
       value: totalPendingAppointments,
-      emoji: "⏳",
-      color: "text-amber-700 bg-amber-50 border-amber-200",
+      icon: Clock,
+      iconBg: "bg-amber-50 text-amber-600 border-amber-200",
     },
     {
-      title: "Confirmed",
+      title: "Confirmed Visits",
       value: totalConfirmedAppointments,
-      emoji: "✅",
-      color: "text-emerald-700 bg-emerald-50 border-emerald-200",
+      icon: CheckCircle2,
+      iconBg: "bg-emerald-50 text-emerald-600 border-emerald-200",
     },
     {
       title: "New Enquiries",
       value: newEnquiries,
-      emoji: "💬",
-      color: "text-[#16A6A1] bg-[#E6F7F6] border-[#16A6A1]/30",
+      icon: MessageSquare,
+      iconBg: "bg-[#CCFBF1] text-[#0D9488] border-[#14B8A6]/20",
     },
     {
-      title: "Patients",
+      title: "Registered Patients",
       value: totalPatients,
-      emoji: "👥",
-      color: "text-indigo-700 bg-indigo-50 border-indigo-200",
+      icon: Users,
+      iconBg: "bg-[#14213D]/10 text-[#14213D] border-[#14213D]/20",
     },
     {
-      title: "Today's Visits",
+      title: "Today's Schedule",
       value: todayAppointments,
-      emoji: "📍",
-      color: "text-violet-700 bg-violet-50 border-violet-200",
+      icon: Stethoscope,
+      iconBg: "bg-sky-50 text-sky-600 border-sky-200",
     },
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-      {stats.map((stat, idx) => (
-        <div
-          key={idx}
-          className="bg-white p-4 rounded-2xl border border-slate-200/90 flex items-center space-x-3.5 shadow-xs transition-all hover:shadow duration-200"
-        >
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">
+      {stats.map((stat, idx) => {
+        const Icon = stat.icon;
+        return (
           <div
-            className={`p-2.5 rounded-xl border shrink-0 text-xl flex items-center justify-center w-11 h-11 ${stat.color}`}
+            key={idx}
+            className="bg-white p-4 rounded-xl border border-[#E2E8F0] flex items-center space-x-3.5 shadow-2xs hover:shadow-xs hover:border-[#14B8A6]/40 transition-all duration-150"
           >
-            {stat.emoji}
+            <div
+              className={`p-2.5 rounded-lg border shrink-0 flex items-center justify-center w-11 h-11 ${stat.iconBg}`}
+            >
+              <Icon className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider leading-none truncate">
+                {stat.title}
+              </p>
+              <h3 className="font-extrabold text-xl text-[#14213D] mt-1.5 leading-none">
+                {stat.value.toLocaleString()}
+              </h3>
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-none truncate">
-              {stat.title}
-            </p>
-            <h3 className="font-extrabold text-xl text-[#102C46] mt-1.5 leading-none">
-              {stat.value}
-            </h3>
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
