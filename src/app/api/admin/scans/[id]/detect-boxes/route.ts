@@ -110,6 +110,8 @@ export async function POST(
       };
     }
 
+    const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+
     // Adjust entries to match grid boxes without inventing fake data
     const newEntries = gridBoxes.map((box: any, idx: number) => {
       const boxCoords = box.coordinates || {
@@ -146,7 +148,7 @@ export async function POST(
           age: { confidence: 0, flag: "missing" as const },
           gender: { confidence: 0, flag: "missing" as const },
           phone: { confidence: 0, flag: "missing" as const },
-          visitDate: { confidence: 0, flag: "missing" as const },
+          visitDate: { value: todayStr, confidence: 100, flag: "high" as const },
           patientCode: { confidence: 0, flag: "missing" as const },
           treatment: { confidence: 0, flag: "missing" as const },
           dentalNotes: { confidence: 0, flag: "missing" as const },

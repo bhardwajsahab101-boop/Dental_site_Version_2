@@ -367,6 +367,7 @@ export async function structureRegisterText(
     return !isHeader;
   });
 
+  const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
   const entries: IScanEntry[] = [];
   let entryIndex = 1;
 
@@ -726,6 +727,7 @@ async function mapAPInexPatientsToEntries(
   readingOrder: "column_first" | "row_first",
   layoutType: "COLUMN_BASED" | "BOX_BASED" | "FREE_FORM" | "MIXED_LAYOUT" = "COLUMN_BASED"
 ): Promise<IScanEntry[]> {
+  const todayStr = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
   const entries: IScanEntry[] = [];
   const rowsPerCol = Math.ceil(patients.length / (columnsCount || 2));
   const isColumnBased = layoutType === "COLUMN_BASED" || columnsCount >= 5;
@@ -818,9 +820,9 @@ async function mapAPInexPatientsToEntries(
           flag: p.address ? "high" : "missing",
         },
         visitDate: {
-          value: p.visitDate || undefined,
-          confidence: p.visitDate ? 90 : 0,
-          flag: p.visitDate ? "high" : "missing",
+          value: todayStr,
+          confidence: 100,
+          flag: "high",
         },
         patientCode: {
           value: p.patientCode ?? undefined,

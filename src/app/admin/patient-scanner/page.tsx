@@ -153,16 +153,55 @@ function getBoxIdx(entry: ScanEntry, fallbackIdx: number): number {
   return fallbackIdx + 1;
 }
 
+function getTodayIsoDate(): string {
+  try {
+    return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  } catch (e) {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
 function normalizeScanDoc(doc: ScanDoc | null): ScanDoc | null {
   if (!doc) return null;
   if (!Array.isArray(doc.entries)) return doc;
+
+  const todayStr = getTodayIsoDate();
+
+  // Check if un-saved entries have varying/different dates
+  const unsavedEntries = doc.entries.filter((e) => e.status !== "saved");
+  const uniqueDates = new Set(
+    unsavedEntries
+      .map((e) => e.fields?.visitDate?.value)
+      .filter((d): d is string => typeof d === "string" && d.trim().length > 0)
+  );
+  // If dates are varying across un-saved rows, harmonize them all to today's date automatically
+  const shouldDefaultToToday = uniqueDates.size > 1;
+
   const normalizedEntries = doc.entries.map((entry, idx) => {
     const bIdx = getBoxIdx(entry, idx);
     const eIdx = (typeof entry.entryIndex === "number" && entry.entryIndex > 0) ? entry.entryIndex : (idx + 1);
+
+    let dateVal = entry.fields?.visitDate?.value;
+    if (entry.status !== "saved") {
+      if (shouldDefaultToToday || !dateVal || dateVal.trim() === "" || dateVal === "undefined") {
+        dateVal = todayStr;
+      }
+    } else if (!dateVal) {
+      dateVal = todayStr;
+    }
+
     return {
       ...entry,
       boxIndex: bIdx,
       entryIndex: eIdx,
+      fields: {
+        ...entry.fields,
+        visitDate: {
+          value: dateVal,
+          confidence: entry.fields?.visitDate?.confidence || 100,
+          flag: (entry.fields?.visitDate?.flag || "high") as any,
+        },
+      },
     };
   });
   return { ...doc, entries: normalizedEntries };
@@ -1751,7 +1790,7 @@ export default function PatientScannerPage() {
                                   <input
                                     type="date"
                                     disabled={isSaved}
-                                    value={entry.fields.visitDate?.value || ""}
+                                    value={entry.fields.visitDate?.value || getTodayIsoDate()}
                                     onChange={(e) =>
                                       handleFieldChange(bIdx, "visitDate", e.target.value)
                                     }
@@ -2461,7 +2500,7 @@ export default function PatientScannerPage() {
                               </div>
                               <input
                                 type="date"
-                                value={activeEntry.fields.visitDate.value || ""}
+                                value={activeEntry.fields.visitDate.value || getTodayIsoDate()}
                                 onChange={(e) =>
                                   handleFieldChange(activeEntry.boxIndex || activeEntry.entryIndex, "visitDate", e.target.value)
                                 }

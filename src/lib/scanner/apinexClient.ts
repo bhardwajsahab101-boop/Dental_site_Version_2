@@ -419,18 +419,10 @@ Return strictly a JSON object adhering to:
 
     // Ensure fee, amount, financial subcolumns, and embedded details are synchronized
     if (Array.isArray(rawToValidate.patients)) {
-      let lastKnownDate: string | null = null;
+      const todayDate = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 
       rawToValidate.patients = rawToValidate.patients.map((p: any) => {
-        // 1. Inherit date for repeated ditto marks or blank rows
-        let vDate = p.visitDate || p.date;
-        if (vDate && vDate !== '"' && vDate !== "do" && vDate !== "—" && vDate !== "-") {
-          lastKnownDate = vDate;
-        } else if ((!vDate || vDate === '"' || vDate === "do" || vDate === "—" || vDate === "-") && lastKnownDate) {
-          vDate = lastKnownDate;
-        }
-
-        // 2. Extract phone embedded in Name if phone is absent
+        // 1. Extract phone embedded in Name if phone is absent
         let pName = p.name || p.fullName || "";
         let pPhone = p.phone;
         if (!pPhone && pName) {
@@ -471,7 +463,7 @@ Return strictly a JSON object adhering to:
           phone: pPhone,
           age: pAge,
           gender: pGender,
-          visitDate: vDate,
+          visitDate: todayDate,
           disease: p.disease || p.chiefComplaint || null,
           treatment: p.treatment || null,
           address: p.address || null,
