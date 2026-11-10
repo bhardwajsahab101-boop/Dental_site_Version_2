@@ -7,6 +7,7 @@ import { ScanDocument } from "@/src/models/ScanDocument";
 import { ScanBatch } from "@/src/models/ScanBatch";
 import { executeDocumentExtraction } from "@/src/lib/scanner/ocrPipeline";
 import { logActivity } from "@/src/lib/audit";
+import { ensureLocalScanFile } from "@/src/lib/scanner/storage";
 
 export async function POST(
   req: NextRequest,
@@ -42,9 +43,9 @@ export async function POST(
 
     const testMode = body.testMode !== undefined ? !!body.testMode : false;
 
-    const filePath = path.join(process.cwd(), "private_storage", "scans", scan.storedFileName);
-    if (!fs.existsSync(filePath)) {
-      return NextResponse.json({ success: false, message: "Document image missing from disk" }, { status: 404 });
+    const filePath = ensureLocalScanFile(scan.storedFileName, scan.imageBase64) || "";
+    if (!filePath && !scan.imageBase64) {
+      return NextResponse.json({ success: false, message: "Document image missing" }, { status: 404 });
     }
 
     // Set status to processing
@@ -76,6 +77,8 @@ export async function POST(
         templateId: templateId ? String(templateId) : undefined,
         clinicId: String(user.clinicId),
         testMode,
+        imageBase64: scan.imageBase64,
+        mimeType: scan.mimeType,
       });
 
       scan.entries = result.entries as any;

@@ -12,6 +12,7 @@ export interface OCRProcessingOptions {
   language?: "mixed" | "eng" | "hin";
   clinicId: string;
   mimeType?: string;
+  imageBase64?: string;
   layoutType?: "grid_boxes" | "table_rows" | "COLUMN_BASED" | "BOX_BASED" | "FREE_FORM" | "MIXED_LAYOUT";
   columnsCount?: number;
   rowsPerColumn?: number;
@@ -978,6 +979,8 @@ export async function executeDocumentExtraction(
   if (options.engine === "apinex" || options.engine === "gemini" || options.engine === "hybrid" || (!options.engine && process.env.APINEX_API_KEY)) {
     const apinexRes = await callAPInexRegisterExtraction({
       imagePath,
+      imageBase64: options.imageBase64,
+      mimeType: options.mimeType,
       columnsCount: openCVResult.columnsDetected || cols,
       readingOrder,
       totalBoxesExpected: boxesToUse.length,

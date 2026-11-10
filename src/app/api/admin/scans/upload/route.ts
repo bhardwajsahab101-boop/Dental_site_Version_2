@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import path from "path";
-import fs from "fs";
 import crypto from "crypto";
 import { getCurrentUser } from "@/src/lib/auth";
 import { connectDB } from "@/src/lib/mongodb";
 import { ScanDocument } from "@/src/models/ScanDocument";
 import { ScanBatch } from "@/src/models/ScanBatch";
 import { logActivity } from "@/src/lib/audit";
+import { saveScanFile } from "@/src/lib/scanner/storage";
 
 export async function POST(req: NextRequest) {
   try {
@@ -57,11 +57,6 @@ export async function POST(req: NextRequest) {
     }
 
     await connectDB();
-
-    const storageDir = path.join(process.cwd(), "private_storage", "scans");
-    if (!fs.existsSync(storageDir)) {
-      fs.mkdirSync(storageDir, { recursive: true });
-    }
 
     // Resolve or create Batch
     let activeBatch = null;
@@ -115,11 +110,13 @@ export async function POST(req: NextRequest) {
       const ext = path.extname(file.name) || ".jpg";
       const randomId = crypto.randomUUID();
       const storedFileName = `${randomId}${ext}`;
-      const filePath = path.join(storageDir, storedFileName);
 
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
-      fs.writeFileSync(filePath, buffer);
+      const imageBase64 = buffer.toString("base64");
+
+      // Safely write to local disk or serverless /tmp
+      saveScanFile(storedFileName, buffer);
 
       const doc = await ScanDocument.create({
         clinicId: user.clinicId,
@@ -127,6 +124,7 @@ export async function POST(req: NextRequest) {
         pageNumber: pageNum++,
         fileName: file.name,
         storedFileName,
+        imageBase64,
         fileSize: file.size,
         mimeType: file.type || "image/jpeg",
         status: "uploaded",

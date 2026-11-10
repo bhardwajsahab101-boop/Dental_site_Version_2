@@ -8,6 +8,7 @@ import { RegisterTemplate } from "@/src/models/RegisterTemplate";
 import { generateGridBoxes } from "@/src/lib/scanner/boxDetector";
 import { runOpenCVGridDetection } from "@/src/lib/scanner/opencvDetector";
 import { logActivity } from "@/src/lib/audit";
+import { ensureLocalScanFile } from "@/src/lib/scanner/storage";
 
 export async function POST(
   req: NextRequest,
@@ -45,11 +46,11 @@ export async function POST(
     let finalOrder = readingOrder;
     let methodUsed = "manual_template";
 
-    const filePath = path.join(process.cwd(), "private_storage", "scans", scan.storedFileName);
+    const filePath = ensureLocalScanFile(scan.storedFileName, scan.imageBase64);
 
     let detectedBoxes = null;
     let cvRes: any = null;
-    if (autoDetectWithOpenCV && fs.existsSync(filePath)) {
+    if (autoDetectWithOpenCV && filePath && fs.existsSync(filePath)) {
       cvRes = await runOpenCVGridDetection(filePath, {
         expectedCols: columnsCount,
         readingOrder,

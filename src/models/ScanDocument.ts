@@ -95,6 +95,7 @@ export interface IScanDocument extends Document {
   pageNumber?: number;
   fileName: string;
   storedFileName: string;
+  imageBase64?: string;
   fileSize: number;
   mimeType: string;
   status:
@@ -233,6 +234,7 @@ const scanDocumentSchema = new Schema<IScanDocument>(
     },
     fileName: { type: String, required: true },
     storedFileName: { type: String, required: true },
+    imageBase64: { type: String },
     fileSize: { type: Number, required: true },
     mimeType: { type: String, required: true },
     status: {

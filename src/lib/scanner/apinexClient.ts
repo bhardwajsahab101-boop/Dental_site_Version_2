@@ -156,7 +156,9 @@ export const APInexExtractionResponseSchema = z.object({
 export type APInexExtractionResponse = z.infer<typeof APInexExtractionResponseSchema>;
 
 export interface APInexRequestOptions {
-  imagePath: string;
+  imagePath?: string;
+  imageBase64?: string;
+  mimeType?: string;
   columnsCount?: number;
   readingOrder?: "column_first" | "row_first";
   totalBoxesExpected?: number;
@@ -189,25 +191,46 @@ export async function callAPInexRegisterExtraction(
   const baseUrl = (process.env.APINEX_BASE_URL || "https://api.apinex.bond/v1").replace(/\/+$/, "");
   const model = process.env.APINEX_MODEL || "free/gemini-3.8-flash";
 
-  if (!fs.existsSync(options.imagePath)) {
-    return {
-      success: false,
-      layoutType: "COLUMN_BASED",
-      layoutConfidence: 0.5,
-      detectedColumns: [],
-      columnCount: 0,
-      rowCount: 0,
-      patients: [],
-      modelUsed: model,
-      isSynthetic: false,
-      error: `Register image file not found at: ${options.imagePath}`,
-    };
+  let base64Image = options.imageBase64 || "";
+  let mimeType = options.mimeType || "image/jpeg";
+
+  if (!base64Image) {
+    if (!options.imagePath || !fs.existsSync(options.imagePath)) {
+      return {
+        success: false,
+        layoutType: "COLUMN_BASED",
+        layoutConfidence: 0.5,
+        detectedColumns: [],
+        columnCount: 0,
+        rowCount: 0,
+        patients: [],
+        modelUsed: model,
+        isSynthetic: false,
+        error: `Register image file not found at: ${options.imagePath}`,
+      };
+    }
+
+    try {
+      const fileBuffer = fs.readFileSync(options.imagePath);
+      base64Image = fileBuffer.toString("base64");
+      mimeType = options.imagePath.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg";
+    } catch (readErr: any) {
+      return {
+        success: false,
+        layoutType: "COLUMN_BASED",
+        layoutConfidence: 0.5,
+        detectedColumns: [],
+        columnCount: 0,
+        rowCount: 0,
+        patients: [],
+        modelUsed: model,
+        isSynthetic: false,
+        error: `Failed to read image file: ${readErr.message}`,
+      };
+    }
   }
 
   try {
-    const fileBuffer = fs.readFileSync(options.imagePath);
-    const base64Image = fileBuffer.toString("base64");
-    const mimeType = options.imagePath.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg";
 
     const promptText = `You are an expert clinical digitization and layout-understanding assistant for Anil Sharma Dental Hospital.
 Analyze this handwritten dental clinic outpatient register photograph with highest fidelity.

@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import path from "path";
-import fs from "fs";
 import { getCurrentUser } from "@/src/lib/auth";
 import { connectDB } from "@/src/lib/mongodb";
 import { ScanDocument } from "@/src/models/ScanDocument";
 import { logActivity } from "@/src/lib/audit";
+import { deleteScanFile } from "@/src/lib/scanner/storage";
 
 export async function GET(
   req: NextRequest,
@@ -63,15 +62,8 @@ export async function DELETE(
       return NextResponse.json({ success: false, message: "Scan not found" }, { status: 404 });
     }
 
-    // Delete image file from disk
-    const filePath = path.join(process.cwd(), "private_storage", "scans", scan.storedFileName);
-    if (fs.existsSync(filePath)) {
-      try {
-        fs.unlinkSync(filePath);
-      } catch (err) {
-        console.warn("Failed to delete file from disk:", err);
-      }
-    }
+    // Delete image file from disk / tmp if present
+    deleteScanFile(scan.storedFileName);
 
     await ScanDocument.deleteOne({ _id: id });
 

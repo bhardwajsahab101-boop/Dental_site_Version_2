@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import path from "path";
-import fs from "fs";
 import { getCurrentUser } from "@/src/lib/auth";
 import { connectDB } from "@/src/lib/mongodb";
 import { ScanBatch } from "@/src/models/ScanBatch";
 import { ScanDocument } from "@/src/models/ScanDocument";
 import { logActivity } from "@/src/lib/audit";
+import { deleteScanFile } from "@/src/lib/scanner/storage";
 
 export async function GET(
   req: NextRequest,
@@ -124,16 +123,8 @@ export async function DELETE(
       clinicId: user.clinicId,
     });
 
-    const storageDir = path.join(process.cwd(), "private_storage", "scans");
     for (const page of pages) {
-      const filePath = path.join(storageDir, page.storedFileName);
-      if (fs.existsSync(filePath)) {
-        try {
-          fs.unlinkSync(filePath);
-        } catch (e) {
-          console.warn("Could not delete file:", filePath);
-        }
-      }
+      deleteScanFile(page.storedFileName);
     }
 
     await ScanDocument.deleteMany({ batchId: batch._id, clinicId: user.clinicId });
