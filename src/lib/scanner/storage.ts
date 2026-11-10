@@ -112,3 +112,4 @@ export function deleteScanFile(storedFileName: string): void {
     }
   }
 }
+
